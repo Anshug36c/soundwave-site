@@ -153,6 +153,12 @@ export const IconUpload = (p: P) => (
     <path d="M12 4v12" />
   </Svg>
 );
+export const IconPhone = (p: P) => (
+  <Svg {...p}>
+    <rect x="7" y="2" width="10" height="20" rx="2" />
+    <path d="M11 18.5h2" />
+  </Svg>
+);
 export const IconLink = (p: P) => (
   <Svg {...p}>
     <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />

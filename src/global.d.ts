@@ -10,6 +10,16 @@ declare global {
       readonly listenTogether: typeof import('./state/listenTogether').listenTogether;
       /** Phone-LAN link store (Mode A: the app serves this site + its audio). */
       readonly phoneLink: typeof import('./state/phoneLink').phoneLink;
+      /** Remote Web Player store (Phone tab: the app provides, the browser plays). */
+      readonly remote: typeof import('./state/remote').remoteStore;
+      /** The <audio> element playing bridge audio in the Remote Web Player. */
+      readonly remoteAudio: {
+        paused: boolean;
+        currentTime: number;
+        duration: number;
+        readyState: number;
+        src: string;
+      } | null;
       /** The <audio> element streaming the phone's audio in Mode A. */
       readonly phoneAudio: {
         paused: boolean;

@@ -20,8 +20,9 @@
     "smoke": "npm run fixtures && npm run build && npm run smoke:serve",
     "relay": "node server/relay.mjs",
     "test:relay": "node server/selftest.mjs",
-    "verify": "npm run typecheck && npm run test && npm run test:relay && npm run smoke && npm run smoke:lt && npm run smoke:phonelink",
+    "verify": "npm run typecheck && npm run test && npm run test:relay && npm run smoke && npm run smoke:lt && npm run smoke:phonelink && npm run smoke:bridge",
     "smoke:phonelink": "node scripts/smoke-phonelink.mjs",
+    "smoke:bridge": "node scripts/smoke-bridge.mjs",
     "phone-sim": "node scripts/phone-sim.mjs"
   },
   "dependencies": {

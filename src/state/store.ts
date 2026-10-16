@@ -44,7 +44,7 @@ import {
 } from '../lib/db';
 import type { ParametricEQ, PlayStats, Playlist, SavedEQProfile, SortDir, SortKey, Track } from '../lib/types';
 
-export type Tab = 'library' | 'playlists' | 'taste' | 'equalizer' | 'together' | 'settings';
+export type Tab = 'library' | 'playlists' | 'taste' | 'equalizer' | 'phone' | 'together' | 'settings';
 
 export interface Capabilities {
   fileSystemAccess: boolean;

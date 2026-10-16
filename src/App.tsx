@@ -1,38 +1,29 @@
 /**
- * App shell: top bar, routed content, mini player bar, bottom navigation, and the overlays
- * (now-playing sheet, toasts, import progress). Screen components live in ./screens.
+ * App shell — mirrors the SoundWave Android app: four main screens
+ * (Home, Search, Library, Phone), a floating glass mini player, a
+ * floating glass bottom navigation, and the full-screen player sheet.
+ * Nothing else lives in the navigation; that is deliberate.
  */
 import { useEffect, useMemo } from 'react';
 import { store, type Tab } from './state/store';
+import { playerSource } from './state/playerSource';
+import { remoteStore } from './state/remote';
+import { nextActive, prevActive, seekByActive, toggleActive } from './state/playerFacade';
+import { HomeScreen } from './screens/HomeScreen';
+import { SearchScreen } from './screens/SearchScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
-import { PlaylistsScreen } from './screens/PlaylistsScreen';
-import { TasteScreen } from './screens/TasteScreen';
-import { EqualizerScreen } from './screens/EqualizerScreen';
-import { SettingsScreen } from './screens/SettingsScreen';
-import { ListenTogetherScreen } from './screens/ListenTogetherScreen';
-import { RemoteScreen } from './screens/RemoteScreen';
-import { PlayerBar } from './components/PlayerBar';
-import { NowPlayingSheet } from './components/NowPlayingSheet';
+import { PhoneScreen } from './screens/PhoneScreen';
+import { MiniPlayer } from './components/MiniPlayer';
+import { FullPlayer } from './components/FullPlayer';
 import { Toasts } from './components/Toasts';
 import { ImportProgress } from './components/ImportProgress';
-import {
-  IconEqualizer,
-  IconLibrary,
-  IconPhone,
-  IconPlaylist,
-  IconSettings,
-  IconTaste,
-  IconTogether,
-} from './ui/icons';
+import { IconHome, IconLibrary, IconPhone, IconSearch } from './ui/icons';
 
-const NAV: { tab: Tab; label: string; Icon: typeof IconLibrary }[] = [
+const NAV: { tab: Tab; label: string; Icon: typeof IconHome }[] = [
+  { tab: 'home', label: 'Home', Icon: IconHome },
+  { tab: 'search', label: 'Search', Icon: IconSearch },
   { tab: 'library', label: 'Library', Icon: IconLibrary },
-  { tab: 'playlists', label: 'Playlists', Icon: IconPlaylist },
-  { tab: 'taste', label: 'Taste', Icon: IconTaste },
-  { tab: 'equalizer', label: 'EQ', Icon: IconEqualizer },
   { tab: 'phone', label: 'Phone', Icon: IconPhone },
-  { tab: 'together', label: 'Together', Icon: IconTogether },
-  { tab: 'settings', label: 'Settings', Icon: IconSettings },
 ];
 
 export function App() {
@@ -40,51 +31,38 @@ export function App() {
   const ready = store((s) => s.ready);
   const tab = store((s) => s.tab);
   const setTab = store((s) => s.setTab);
-  const settings = store((s) => s.settings);
   const nowPlayingOpen = store((s) => s.nowPlayingOpen);
   const importing = store((s) => s.importing);
+  const source = playerSource((s) => s.source);
 
   useEffect(() => {
     void init();
   }, [init]);
 
-  // Apply the theme to <html> so the CSS custom properties switch.
+  // One audible player at a time: starting one side pauses the other
+  // side's audio element (their queues and state stay untouched).
   useEffect(() => {
-    const resolved =
-      settings.theme === 'system'
-        ? window.matchMedia?.('(prefers-color-scheme: light)').matches
-          ? 'light'
-          : 'dark'
-        : settings.theme;
-    document.documentElement.setAttribute('data-theme', resolved);
-  }, [settings.theme]);
+    if (source === 'remote') void store.getState().pause();
+    else remoteStore.getState().pausePlayback();
+  }, [source]);
 
   // Global keyboard shortcuts for transport (ignored while typing in a field).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
-      const s = store.getState();
       switch (e.code) {
         case 'Space':
           e.preventDefault();
-          void s.togglePlay();
+          toggleActive();
           break;
         case 'ArrowRight':
-          if (e.shiftKey) void s.next('manual');
-          else s.seekBy(5);
+          if (e.shiftKey) nextActive();
+          else seekByActive(5);
           break;
         case 'ArrowLeft':
-          if (e.shiftKey) void s.previous();
-          else s.seekBy(-5);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          s.setVolume(Math.min(1, s.settings.volume + 0.05));
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          s.setVolume(Math.max(0, s.settings.volume - 0.05));
+          if (e.shiftKey) prevActive();
+          else seekByActive(-5);
           break;
       }
     };
@@ -94,20 +72,14 @@ export function App() {
 
   const screen = useMemo(() => {
     switch (tab) {
+      case 'home':
+        return <HomeScreen />;
+      case 'search':
+        return <SearchScreen />;
       case 'library':
         return <LibraryScreen />;
-      case 'playlists':
-        return <PlaylistsScreen />;
-      case 'taste':
-        return <TasteScreen />;
-      case 'equalizer':
-        return <EqualizerScreen />;
       case 'phone':
-        return <RemoteScreen />;
-      case 'together':
-        return <ListenTogetherScreen />;
-      case 'settings':
-        return <SettingsScreen />;
+        return <PhoneScreen />;
     }
   }, [tab]);
 
@@ -126,9 +98,9 @@ export function App() {
 
       <main className="content">{ready ? screen : <BootSkeleton />}</main>
 
-      <PlayerBar onOpen={() => store.getState().setNowPlayingOpen(true)} />
+      <MiniPlayer />
 
-      <nav className="bottomnav">
+      <nav className="bottomnav" aria-label="Main">
         {NAV.map(({ tab: t, label, Icon }) => (
           <button key={t} className={`nav-item${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
             <Icon className="nav-ic" size={24} />
@@ -137,7 +109,7 @@ export function App() {
         ))}
       </nav>
 
-      {nowPlayingOpen && <NowPlayingSheet onClose={() => store.getState().setNowPlayingOpen(false)} />}
+      {nowPlayingOpen && <FullPlayer />}
       {importing.active && <ImportProgress />}
       <Toasts />
     </div>

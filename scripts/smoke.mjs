@@ -2,9 +2,10 @@
  * End-to-end smoke test for Soundwave Web, run against the built `dist/` via `vite preview`.
  *
  * This is a real browser (Playwright Chromium), not a static fetch: it proves the React app
- * mounts, the Web Audio graph initialises, files import and parse, playback starts, history is
- * recorded, and the Taste Engine ranks it — while failing loudly on any console error or unhandled
- * rejection. Run locally with `node scripts/smoke.mjs` (CI runs the same script).
+ * mounts, files import into the Library and parse, local playback starts and advances, the
+ * app-mirrored player opens, and the four-tab navigation (Home / Search / Library / Phone) is
+ * exactly what ships — while failing loudly on any console error or unhandled rejection.
+ * Run locally with `node scripts/smoke.mjs` (CI runs the same script).
  */
 import { chromium } from 'playwright';
 import { readdirSync } from 'node:fs';
@@ -53,7 +54,13 @@ async function main() {
     const title = await page.textContent('.brand');
     assert(/Soundwave/i.test(title || ''), `app mounted, brand reads "${(title || '').trim()}"`);
 
-    // Empty library state should be visible on first run.
+    // Default tab mirrors the app: Home. With no phone connected it must
+    // show the connect prompt, not invented content.
+    assert(await page.locator('.connect-prompt').isVisible().catch(() => false),
+      'Home shows the connect prompt while no phone is connected');
+
+    // Library empty state on first run.
+    await page.locator('.nav-item', { hasText: 'Library' }).click();
     const emptyVisible = await page.locator('.empty').isVisible().catch(() => false);
     assert(emptyVisible, 'empty-library state shown on first load');
 
@@ -99,26 +106,31 @@ async function main() {
     const p2 = await page.evaluate(() => window.__soundwave.audioState.positionSec);
     assert(p2 > p1, `position advancing over time (${p1.toFixed(2)}s -> ${p2.toFixed(2)}s)`);
 
-    // 5. Navigate to Taste — history should now exist and produce a ranking.
-    await page.locator('.nav-item', { hasText: 'Taste' }).click();
-    await page.waitForSelector('.taste-hero', { timeout: 8000 });
-    assert(true, 'Taste screen rendered');
-
-    // 6. Navigate to Equalizer, apply a preset, confirm bands render.
-    await page.locator('.nav-item', { hasText: 'EQ' }).click();
-    await page.waitForSelector('.preset-row .chip', { timeout: 8000 });
-    await page.locator('.preset-row .chip', { hasText: 'Bass Boost' }).first().click();
+    // 5. The full player mirrors the app: open it from the mini player.
+    await page.locator('.playerbar-inner').click();
+    await page.waitForSelector('.sheet', { timeout: 8000 });
+    assert(await page.locator('.np-mirror, .np-art').first().isVisible().catch(() => false),
+      'full player opened with its artwork backdrop');
+    assert(await page.locator('[data-testid="player-toggle"]').isVisible().catch(() => false),
+      'full player transport visible');
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
-    const bandCount = await page.locator('.eq-band').count();
-    assert(bandCount > 0, `EQ bands rendered after applying preset (${bandCount})`);
+    assert((await page.locator('.sheet').count()) === 0, 'full player closed');
 
-    // 7. Settings screen renders and reflects library count.
-    await page.locator('.nav-item', { hasText: 'Settings' }).click();
-    await page.waitForSelector('.setting-row', { timeout: 8000 });
-    assert(true, 'Settings screen rendered');
+    // 6. Navigation is exactly the app's four screens — nothing more.
+    const navLabels = await page.locator('.nav-item').allTextContents();
+    const cleaned = navLabels.map((t) => t.trim()).join(',');
+    assert(cleaned === 'Home,Search,Library,Phone', `nav is Home,Search,Library,Phone (got: ${cleaned})`);
+    await page.locator('.nav-item', { hasText: 'Search' }).click();
+    assert(await page.locator('.connect-prompt').isVisible().catch(() => false),
+      'Search shows the connect prompt while no phone is connected');
+    await page.locator('.nav-item', { hasText: 'Phone' }).click();
+    await page.waitForSelector('.page-title');
+    assert(true, 'Phone (connection) screen rendered');
 
-    // 8. Reload: library + settings must persist via IndexedDB.
+    // 7. Reload: library must persist via IndexedDB.
     await page.goto(BASE, { waitUntil: 'networkidle' });
+    await page.locator('.nav-item', { hasText: 'Library' }).click();
     await page.waitForSelector('.track-row', { timeout: 10000 }).catch(() => {});
     const persisted = await page.locator('.track-row').count();
     assert(persisted >= audioFiles.length,

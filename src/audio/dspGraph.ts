@@ -12,8 +12,23 @@
  * EqualizerAPO profile produces the same curve in both builds.
  */
 
-import { toBiquadType } from '../lib/eqParser';
-import { MAX_BANDS, type ParametricEQ, type ParametricEQBand } from '../lib/types';
+import { MAX_BANDS, type FilterType, type ParametricEQ, type ParametricEQBand } from '../lib/types';
+
+/** EqualizerAPO/AutoEq filter type -> Web Audio BiquadFilterType. */
+export function toBiquadType(filterType: FilterType): BiquadFilterType {
+  switch (filterType) {
+    case 'PK':
+      return 'peaking';
+    case 'LSC':
+      return 'lowshelf';
+    case 'HSC':
+      return 'highshelf';
+    case 'LPQ':
+      return 'lowpass';
+    case 'HPQ':
+      return 'highpass';
+  }
+}
 
 /** dB → linear amplitude. */
 export function dbToLinear(db: number): number {

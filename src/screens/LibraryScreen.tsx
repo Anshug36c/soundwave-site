@@ -1,30 +1,13 @@
 /**
- * Library: the main screen. Import controls (files / folder / URL), search and sort, quick stats,
- * and the track list. Playing a track queues the whole current view; shuffle re-orders around the
- * picked track. Also hosts the "add to playlist" and per-track menus.
+ * Library — mirrors the app's Library screen: your songs, on this device.
+ * Music files imported into the browser (they never leave the device),
+ * most recently added first. Playing a row queues the visible list in the
+ * local player; phone music lives under Home/Search instead.
  */
 import { useMemo, useRef, useState } from 'react';
 import { sortedTracks, store } from '../state/store';
 import { TrackRow, EmptyState, Modal, formatLongTime, formatBytes } from '../ui/common';
-import {
-  IconFolder,
-  IconLibrary,
-  IconLink,
-  IconMusic,
-  IconPlus,
-  IconSearch,
-  IconTrash,
-  IconUpload,
-} from '../ui/icons';
-import type { SortKey } from '../lib/types';
-
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'added', label: 'Recently added' },
-  { key: 'title', label: 'Title' },
-  { key: 'artist', label: 'Artist' },
-  { key: 'album', label: 'Album' },
-  { key: 'duration', label: 'Length' },
-];
+import { IconFolder, IconLink, IconMusic, IconPlus, IconSearch, IconTrash, IconUpload } from '../ui/icons';
 
 export function LibraryScreen() {
   const state = store();
@@ -33,8 +16,6 @@ export function LibraryScreen() {
   const [urlOpen, setUrlOpen] = useState(false);
   const [urlValue, setUrlValue] = useState('');
   const [menuTrack, setMenuTrack] = useState<string | null>(null);
-  const [playlistFor, setPlaylistFor] = useState<string | null>(null);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
 
   const visible = useMemo(
     () => sortedTracks({ tracks: state.tracks, query: state.query, sortKey: state.sortKey, sortDir: state.sortDir }),
@@ -55,13 +36,12 @@ export function LibraryScreen() {
       <>
         <h1 className="page-title">Library</h1>
         <p className="page-sub">
-          Soundwave Web plays your own audio files in the browser. Nothing is uploaded anywhere —
-          files stay on your device and your library is stored locally.
+          Music saved in this browser. Nothing is uploaded anywhere — files stay on your device.
         </p>
         <EmptyState
           icon={<IconMusic size={72} />}
           title="Your library is empty"
-          body="Add music to start playing. On Chrome and Edge you can pick a whole folder and keep access to it across visits; on other browsers, add files for this session."
+          body="Add music to play it here. On Chrome and Edge you can pick a whole folder and keep access to it across visits; on other browsers, add files for this session. Music from your SoundWave phone lives under Home and Search instead."
           actions={
             <>
               <button className="btn primary" onClick={() => fileInput.current?.click()}>
@@ -94,7 +74,7 @@ export function LibraryScreen() {
       </p>
 
       <div className="lib-toolbar">
-        <div className="search">
+        <div className="search" style={{ flex: 1 }}>
           <IconSearch size={18} />
           <input
             type="text"
@@ -104,58 +84,26 @@ export function LibraryScreen() {
             aria-label="Search library"
           />
         </div>
-        <select
-          className="sort-select"
-          value={state.sortKey}
-          onChange={(e) => state.setSort(e.target.value as SortKey, 'asc')}
-          aria-label="Sort by"
-        >
-          {SORTS.map((s) => (
-            <option key={s.key} value={s.key}>
-              {s.label}
-            </option>
-          ))}
-        </select>
         <button className="btn icon" onClick={() => fileInput.current?.click()} aria-label="Add files" title="Add files">
           <IconPlus size={20} />
         </button>
-      </div>
-
-      <div className="row wrap" style={{ gap: 8, marginBottom: 14 }}>
-        <button className="btn primary sm" onClick={() => state.playQueue(visible.map((t) => t.id), 0)} disabled={visible.length === 0}>
-          Play all
-        </button>
-        <button
-          className="btn sm"
-          onClick={() => {
-            state.toggleShuffle();
-            if (visible.length > 0) state.playQueue(visible.map((t) => t.id), 0);
-          }}
-          disabled={visible.length === 0}
-        >
-          Shuffle
-        </button>
         {state.capabilities.fileSystemAccess && (
-          <button className="btn sm" onClick={() => void state.importFromDirectory()}>
-            <IconFolder size={16} /> Folder
+          <button className="btn icon" onClick={() => void state.importFromDirectory()} aria-label="Open folder" title="Open folder">
+            <IconFolder size={20} />
           </button>
         )}
-        <button className="btn sm ghost" onClick={() => setUrlOpen(true)}>
-          <IconLink size={16} /> URL
-        </button>
       </div>
 
       <div className="track-list">
         {visible.length === 0 ? (
           <div className="center muted" style={{ padding: 40 }}>
-            No tracks match “{state.query}”.
+            No tracks match "{state.query}".
           </div>
         ) : (
-          visible.map((t, i) => (
+          visible.map((t) => (
             <TrackRow
               key={t.id}
               track={t}
-              index={i}
               isActive={t.id === currentId}
               isPlaying={t.id === currentId && state.playing}
               onPlay={() => void state.playTrack(t.id, visible.map((x) => x.id))}
@@ -189,8 +137,8 @@ export function LibraryScreen() {
             <button className="btn" onClick={() => { void state.playTrack(menuTrackObj.id, visible.map((x) => x.id)); setMenuTrack(null); }}>
               <IconMusic size={18} /> Play
             </button>
-            <button className="btn" onClick={() => { setPlaylistFor(menuTrackObj.id); setMenuTrack(null); }}>
-              <IconPlus size={18} /> Add to playlist
+            <button className="btn ghost" onClick={() => setUrlOpen(true)}>
+              <IconLink size={18} /> Add URL
             </button>
             <button
               className="btn"
@@ -201,23 +149,6 @@ export function LibraryScreen() {
             </button>
           </div>
         </Modal>
-      )}
-
-      {playlistFor && (
-        <AddToPlaylistModal
-          trackId={playlistFor}
-          onClose={() => setPlaylistFor(null)}
-          onCreate={async (name) => {
-            await state.createPlaylist(name, [playlistFor]);
-            setPlaylistFor(null);
-          }}
-          onAddTo={async (pid) => {
-            await state.addToPlaylist(pid, [playlistFor]);
-            setPlaylistFor(null);
-          }}
-          newPlaylistName={newPlaylistName}
-          setNewPlaylistName={setNewPlaylistName}
-        />
       )}
     </>
   );
@@ -282,68 +213,6 @@ function UrlModal({
         Browsers only let a page decode audio from a server that sends permissive CORS headers. If a
         URL fails, that is why — local files always work.
       </p>
-    </Modal>
-  );
-}
-
-export function AddToPlaylistModal({
-  trackId,
-  onClose,
-  onCreate,
-  onAddTo,
-  newPlaylistName,
-  setNewPlaylistName,
-}: {
-  trackId: string;
-  onClose: () => void;
-  onCreate: (name: string) => void;
-  onAddTo: (playlistId: string) => void;
-  newPlaylistName: string;
-  setNewPlaylistName: (v: string) => void;
-}) {
-  const playlists = store((s) => s.playlists);
-  void trackId;
-  return (
-    <Modal
-      title="Add to playlist"
-      onClose={onClose}
-      actions={
-        <>
-          <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={() => onCreate(newPlaylistName)} disabled={!newPlaylistName.trim()}>
-            Create
-          </button>
-        </>
-      }
-    >
-      <div className="field">
-        <label htmlFor="newpl">New playlist name</label>
-        <input
-          id="newpl"
-          type="text"
-          placeholder="e.g. Late night"
-          value={newPlaylistName}
-          onChange={(e) => setNewPlaylistName(e.target.value)}
-        />
-      </div>
-      {playlists.length > 0 && (
-        <>
-          <div className="section-title" style={{ marginTop: 6 }}>Existing</div>
-          <div className="track-list">
-            {playlists.map((p) => (
-              <div key={p.id} className="track-row" onClick={() => onAddTo(p.id)}>
-                <div className="art-fallback" style={{ width: 38, height: 38, fontSize: 16 }}>
-                  <IconLibrary size={18} />
-                </div>
-                <div className="track-main">
-                  <div className="t-title">{p.name}</div>
-                  <div className="t-sub">{p.trackIds.length} tracks</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </Modal>
   );
 }

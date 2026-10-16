@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { getSharedEngine, store } from './state/store';
-import { listenTogether } from './state/listenTogether';
+import { listenTogether, getStreamPlayer } from './state/listenTogether';
+import { phoneLink, getPhoneAudio } from './state/phoneLink';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -39,6 +40,33 @@ Object.defineProperty(window, '__soundwave', {
     /** Live Listen Together session store (room/role/sync state + actions). */
     get listenTogether() {
       return listenTogether;
+    },
+    /** Received-audio (Listen Together audio bridge) observable state. */
+    get streamState() {
+      const s = listenTogether.getState();
+      const p = getStreamPlayer();
+      return {
+        trackId: s.streamTrackId,
+        size: s.streamSize,
+        received: s.streamReceived,
+        ready: s.streamReady,
+        usingStream: s.usingStream,
+        playing: p?.isPlaying ?? false,
+        positionSec: p?.getPositionSec() ?? 0,
+        durationSec: p?.durationSec ?? 0,
+        contextState: p?.contextState ?? 'closed',
+      };
+    },
+    /** Phone-LAN link session store (Mode A). */
+    get phoneLink() {
+      return phoneLink;
+    },
+    /** The <audio> element streaming the phone's audio (Mode A). */
+    get phoneAudio() {
+      const a = getPhoneAudio();
+      return a
+        ? { paused: a.paused, currentTime: a.currentTime, duration: a.duration, readyState: a.readyState, src: a.src }
+        : null;
     },
     snapshot() {
       const s = store.getState();

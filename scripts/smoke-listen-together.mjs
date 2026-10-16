@@ -143,7 +143,41 @@ try {
   if (s.missing === 'nope') ok('guest flagged unavailable track instead of silently ignoring');
   else fail(`missingTrack not set (got ${s.missing})`);
 
-  /* ---- 5. reverse: browser hosts, app-sim guest receives broadcast ---- */
+  /* ---- 5. audio bridge: host streams bytes; guest plays audio it does NOT own ---- */
+  const wavPath = files[0];
+  const wav = (await import('node:fs')).readFileSync(wavPath);
+  const streamId = 'streamed|nobody';
+  app.send('playback_action', playback('change_track', trackInfo(streamId, 'streamed', 'nobody')));
+  await page.waitForFunction(() => window.__soundwave.listenTogether.getState().missingTrack !== null, null, { timeout: 6000 }).catch(() => {});
+  // manifest: AudioManifest{1 trackId,2 mime,3 size,4 durationMs}
+  const man = (() => { const o = []; ws_(o, 1, streamId); ws_(o, 2, 'audio/wav'); wi(o, 3, wav.length); wi(o, 4, 6000); return Buffer.from(o); })();
+  app.send('audio_manifest', man);
+  const CHUNK = 16384;
+  for (let i = 0, seq = 0; i < wav.length; i += CHUNK, seq++) {
+    const slice = wav.subarray(i, i + CHUNK);
+    const o = []; wi(o, 1, seq); ld(o, 2, [...slice]);
+    app.send('audio_chunk', Buffer.from(o));
+  }
+  await page.waitForFunction(() => window.__soundwave.streamState.ready === true, null, { timeout: 10000 }).catch(() => {});
+  let ss = await page.evaluate(() => window.__soundwave.streamState);
+  if (ss.ready) ok(`guest reassembled+decoded streamed audio (${ss.received}/${ss.size} bytes, dur ${ss.durationSec.toFixed(1)}s)`);
+  else fail('guest never finished decoding streamed audio');
+  if (ss.usingStream) ok('guest switched output to the received stream'); else fail('guest did not activate stream');
+  if (ss.durationSec > 5 && ss.durationSec < 7) ok('decoded duration matches the 6s fixture'); else fail(`decoded duration off (${ss.durationSec})`);
+
+  app.send('playback_action', playback('play', null, 0));
+  await page.waitForFunction(() => window.__soundwave.streamState.playing === true, null, { timeout: 6000 }).catch(() => {});
+  ss = await page.evaluate(() => window.__soundwave.streamState);
+  if (ss.playing) ok('guest is playing the streamed audio'); else fail('stream not playing after host play');
+  const p0 = ss.positionSec;
+  await new Promise((r) => setTimeout(r, 900));
+  ss = await page.evaluate(() => window.__soundwave.streamState);
+  if (ss.positionSec > p0 + 0.3) ok(`streamed playhead advancing (${p0.toFixed(2)}s -> ${ss.positionSec.toFixed(2)}s)`);
+  else fail(`stream playhead not advancing (${p0} -> ${ss.positionSec})`);
+  const miss = await page.evaluate(() => window.__soundwave.listenTogether.getState().missingTrack);
+  if (miss === null) ok('unavailable-track banner cleared once stream arrived'); else fail('missingTrack still set despite stream');
+
+  /* ---- 6. reverse: browser hosts, app-sim guest receives broadcast ---- */
   await page.evaluate(() => window.__soundwave.listenTogether.getState().leave());
   await page.evaluate(() => window.__soundwave.listenTogether.getState().createRoom());
   await page.waitForFunction(() => window.__soundwave.listenTogether.getState().role === 'host', null, { timeout: 8000 });

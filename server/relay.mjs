@@ -180,7 +180,7 @@ wss.on('connection', (ws) => {
         const username = decStr(payload, 1) || 'anon';
         const code = roomCode();
         const userId = rand(8); const token = rand(16);
-        const room = { code, hostId: userId, users: new Map(), state: { currentTrack: null, isPlaying: false, position: 0, lastUpdate: Date.now(), volume: 1, queue: [], allowParticipantControl: false }, pending: new Map(), buffered: new Set() };
+        const room = { code, hostId: userId, users: new Map(), state: { currentTrack: null, isPlaying: false, position: 0, lastUpdate: Date.now(), volume: 1, queue: [], allowParticipantControl: false }, pending: new Map(), buffered: new Set(), audio: null };
         room.users.set(userId, { userId, username, isHost: true, isConnected: true, ws, sessionToken: token });
         rooms.set(code, room); sessions.set(token, { roomCode: code, userId });
         me = { room, userId, username, sessionToken: token, isHost: true };
@@ -295,6 +295,21 @@ wss.on('connection', (ws) => {
         break;
       }
 
+      /* Audio bridge: the host publishes the current track's bytes; relay forwards to guests and
+         keeps them so a guest who joins mid-track can still catch up. */
+      case 'audio_manifest': {
+        if (!me?.room) break;
+        me.room.audio = { manifest: payload, chunks: [] };
+        broadcast(me.room, 'audio_manifest', payload, ws);
+        break;
+      }
+      case 'audio_chunk': {
+        if (!me?.room) break;
+        if (me.room.audio) me.room.audio.chunks.push(payload);
+        broadcast(me.room, 'audio_chunk', payload, ws);
+        break;
+      }
+
       case 'reconnect': {
         const token = decStr(payload, 1);
         const sess = sessions.get(token);
@@ -305,6 +320,7 @@ wss.on('connection', (ws) => {
         u.ws = ws; u.isConnected = true;
         me = { room, userId: u.userId, username: u.username, sessionToken: token, isHost: u.isHost };
         send(ws, 'reconnected', encReconnected(room, u.userId, u.isHost));
+        sendBufferedAudio(room, ws);
         broadcast(room, 'user_reconnected', simple([[1, 's', u.userId], [2, 's', u.username]]), ws);
         break;
       }
@@ -350,8 +366,15 @@ function approveJoin(room, userId) {
   room.pending.delete(userId);
   room.users.set(userId, { userId, username: p.username, isHost: false, isConnected: true, ws: p.ws, sessionToken: p.sessionToken });
   send(p.ws, 'join_approved', encJoinApproved(room, userId, p.sessionToken));
+  sendBufferedAudio(room, p.ws);
   broadcast(room, 'user_joined', simple([[1, 's', userId], [2, 's', p.username]]), p.ws);
   console.log(`[relay] ${p.username} joined ${room.code}`);
+}
+/** Late joiners get the in-flight track's manifest + chunks so they can catch up. */
+function sendBufferedAudio(room, ws) {
+  if (!room.audio) return;
+  send(ws, 'audio_manifest', room.audio.manifest);
+  for (const c of room.audio.chunks) send(ws, 'audio_chunk', c);
 }
 function encJoinApproved(room, userId, token) {
   const o = []; wStr(o, 1, room.code); wStr(o, 2, userId); wStr(o, 3, token); lenDelim(o, 4, [...encRoomState(room)]);

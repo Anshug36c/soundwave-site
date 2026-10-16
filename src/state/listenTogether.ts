@@ -18,9 +18,10 @@ import {
   type LTEvent,
   type LTRole,
 } from '../lib/ltClient';
-import type { LTPlaybackAction, LTRoomState, LTTrackInfo, LTUserInfo } from '../lib/ltProto';
+import type { LTAudioManifest, LTPlaybackAction, LTRoomState, LTTrackInfo, LTUserInfo } from '../lib/ltProto';
 import { trackKeyOf } from '../lib/tasteScoring';
 import type { Track } from '../lib/types';
+import { StreamPlayer } from '../audio/streamPlayer';
 
 export interface LTPendingJoin {
   userId: string;
@@ -43,6 +44,12 @@ interface ListenTogetherState {
   missingTrack: LTTrackInfo | null;
   rtt: number;
   notice: string | null;
+  /** Audio bridge: the host is streaming the current track's bytes to us. */
+  streamTrackId: string | null;
+  streamSize: number;
+  streamReceived: number;
+  streamReady: boolean;
+  usingStream: boolean;
 
   createRoom: () => void;
   joinRoom: (code: string) => void;
@@ -57,6 +64,16 @@ let client: ListenTogetherClient | null = null;
 let clientKey = '';
 let applyingRemote = false;
 let unsubStore: (() => void) | null = null;
+
+/* Audio bridge receive side: manifest + ordered chunks -> decoded StreamPlayer. */
+let streamPlayer: StreamPlayer | null = null;
+let streamManifest: LTAudioManifest | null = null;
+let streamChunks = new Map<number, Uint8Array>();
+let streamBytes = 0;
+
+export function getStreamPlayer(): StreamPlayer | null {
+  return streamPlayer;
+}
 
 function toInfo(t: Track | undefined): LTTrackInfo | null {
   if (!t) return null;
@@ -83,6 +100,10 @@ function resolveLocal(info: LTTrackInfo | null | undefined): Track | null {
 export const listenTogether = create<ListenTogetherState>((set, get) => {
   function resetRoom(): void {
     stopHostBroadcast();
+    streamPlayer?.stop();
+    streamManifest = null;
+    streamChunks = new Map();
+    streamBytes = 0;
     set({
       role: 'none',
       roomCode: null,
@@ -95,6 +116,11 @@ export const listenTogether = create<ListenTogetherState>((set, get) => {
       positionMs: 0,
       missingTrack: null,
       allowParticipantControl: false,
+      streamTrackId: null,
+      streamSize: 0,
+      streamReceived: 0,
+      streamReady: false,
+      usingStream: false,
     });
   }
 
@@ -104,8 +130,14 @@ export const listenTogether = create<ListenTogetherState>((set, get) => {
 
   /** Make the local engine match a remote track + queue (guest side). */
   async function mirrorTrack(info: LTTrackInfo | null, queue: LTTrackInfo[]): Promise<void> {
-    const local = resolveLocal(info);
     if (!info) return;
+    // Prefer the host's audio stream when we have it for this track — it works even though the
+    // file isn't in our library.
+    if (get().streamReady && get().streamTrackId === info.id) {
+      await activateStream();
+      return;
+    }
+    const local = resolveLocal(info);
     if (!local) {
       set({ missingTrack: info });
       await store.getState().pause();
@@ -132,13 +164,65 @@ export const listenTogether = create<ListenTogetherState>((set, get) => {
     }
   }
 
+  /** Re-assemble ordered chunks and decode them into the stream player. */
+  async function assembleAndDecode(): Promise<void> {
+    if (!streamManifest) return;
+    const ordered: Uint8Array[] = [];
+    for (let i = 0; i < streamChunks.size; i++) {
+      const c = streamChunks.get(i);
+      if (c) ordered.push(c);
+    }
+    const total = ordered.reduce((n, c) => n + c.length, 0);
+    const all = new Uint8Array(total);
+    let o = 0;
+    for (const c of ordered) {
+      all.set(c, o);
+      o += c.length;
+    }
+    if (!streamPlayer) streamPlayer = new StreamPlayer();
+    streamPlayer.stop();
+    try {
+      await streamPlayer.decode(all);
+      set({ streamReady: true });
+      const cur = get().currentTrack;
+      if (cur && cur.id === streamManifest.trackId) await activateStream();
+    } catch {
+      set({ streamReady: false, notice: 'Could not decode the streamed audio.' });
+    }
+  }
+
+  /** Switch the guest's output to the received stream (and quiet the local engine). */
+  async function activateStream(): Promise<void> {
+    if (!streamPlayer || !streamPlayer.hasBuffer) return;
+    const st = store.getState();
+    applyingRemote = true;
+    try {
+      await st.pause();
+    } finally {
+      applyingRemote = false;
+    }
+    streamPlayer.setVolume(get().volume);
+    set({ usingStream: true, missingTrack: null });
+  }
+
   async function alignTransport(isPlaying: boolean, positionMs: number): Promise<void> {
+    const targetSec = positionMs / 1000;
+    if (get().usingStream && streamPlayer) {
+      applyingRemote = true;
+      try {
+        if (isPlaying && !streamPlayer.isPlaying) await streamPlayer.play(targetSec);
+        else if (!isPlaying && streamPlayer.isPlaying) streamPlayer.pause();
+        else if (isPlaying && Math.abs(streamPlayer.getPositionSec() - targetSec) > 1) streamPlayer.seek(targetSec);
+      } finally {
+        applyingRemote = false;
+      }
+      return;
+    }
     const st = store.getState();
     applyingRemote = true;
     try {
       if (isPlaying && !st.playing) await st.play();
       else if (!isPlaying && st.playing) await st.pause();
-      const targetSec = positionMs / 1000;
       if (Math.abs(st.positionSec - targetSec) > 1) st.seek(targetSec);
     } finally {
       applyingRemote = false;
@@ -164,10 +248,16 @@ export const listenTogether = create<ListenTogetherState>((set, get) => {
 
   async function applyPlayback(a: LTPlaybackAction): Promise<void> {
     switch (a.action) {
-      case 'change_track':
+      case 'change_track': {
+        const newId = a.trackInfo?.id ?? null;
+        if (streamPlayer && get().streamTrackId !== newId) {
+          streamPlayer.stop();
+          set({ usingStream: false });
+        }
         set({ currentTrack: a.trackInfo ?? null, isPlaying: false, positionMs: 0, roomQueue: a.queue?.length ? a.queue : get().roomQueue });
         await mirrorTrack(a.trackInfo ?? null, a.queue?.length ? a.queue : get().roomQueue);
         break;
+      }
       case 'play':
         set({ isPlaying: true, positionMs: a.position ?? get().positionMs });
         await alignTransport(true, a.position ?? get().positionMs);
@@ -260,6 +350,28 @@ export const listenTogether = create<ListenTogetherState>((set, get) => {
       case 'serverError':
         set({ notice: `Server: ${e.code} — ${e.message}` });
         break;
+      case 'audioManifest':
+        streamManifest = e.manifest;
+        streamChunks = new Map();
+        streamBytes = 0;
+        set({
+          streamTrackId: e.manifest.trackId,
+          streamSize: e.manifest.size,
+          streamReceived: 0,
+          streamReady: false,
+          usingStream: false,
+        });
+        break;
+      case 'audioChunk': {
+        if (!streamManifest) break;
+        if (!streamChunks.has(e.seq)) {
+          streamChunks.set(e.seq, e.data);
+          streamBytes += e.data.length;
+          set({ streamReceived: streamBytes });
+        }
+        if (streamBytes >= streamManifest.size) void assembleAndDecode();
+        break;
+      }
       case 'pong':
         set({ rtt: e.rtt });
         break;
@@ -344,6 +456,11 @@ export const listenTogether = create<ListenTogetherState>((set, get) => {
     missingTrack: null,
     rtt: 0,
     notice: null,
+    streamTrackId: null,
+    streamSize: 0,
+    streamReceived: 0,
+    streamReady: false,
+    usingStream: false,
 
     createRoom() {
       const c = ensureClient();

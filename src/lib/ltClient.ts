@@ -13,6 +13,8 @@
 import {
   ApproveJoinSchema,
   ApproveSuggestionSchema,
+  AudioChunkSchema,
+  AudioManifestSchema,
   BufferReadySchema,
   BufferWaitSchema,
   ChatMessageSchema,
@@ -42,6 +44,7 @@ import {
   SyncStateSchema,
   UpdateRoomSettingsSchema,
   UserJoinedSchema,
+  type LTAudioManifest,
   type LTPlaybackAction,
   type LTRoomState,
   type LTTrackInfo,
@@ -79,6 +82,8 @@ export type LTEvent =
   | { type: 'suggestionReceived'; suggestionId: string; fromUsername: string; track: LTTrackInfo }
   | { type: 'suggestionApproved'; suggestionId: string; track: LTTrackInfo }
   | { type: 'suggestionRejected'; suggestionId: string; reason: string }
+  | { type: 'audioManifest'; manifest: LTAudioManifest }
+  | { type: 'audioChunk'; seq: number; data: Uint8Array }
   | { type: 'pong'; rtt: number };
 
 export interface LTClientOptions {
@@ -315,6 +320,10 @@ export class ListenTogetherClient {
         return decodeMessage(bytes, SuggestionRejectedSchema);
       case 'chat':
         return decodeMessage(bytes, ChatMessageSchema);
+      case 'audio_manifest':
+        return decodeMessage(bytes, AudioManifestSchema);
+      case 'audio_chunk':
+        return decodeMessage(bytes, AudioChunkSchema);
       default:
         return null;
     }
@@ -406,6 +415,12 @@ export class ListenTogetherClient {
         break;
       case 'chat':
         this.emit({ type: 'chat', userId: p.userId, username: p.username, message: p.message, timestamp: p.timestamp });
+        break;
+      case 'audio_manifest':
+        this.emit({ type: 'audioManifest', manifest: p as LTAudioManifest });
+        break;
+      case 'audio_chunk':
+        this.emit({ type: 'audioChunk', seq: p.seq, data: p.data });
         break;
       case 'pong':
         this.emit({ type: 'pong', rtt: this.pingSentAt ? Date.now() - this.pingSentAt : 0 });

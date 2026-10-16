@@ -13,9 +13,10 @@
  * shown as unavailable rather than silently ignored — a static page can't stream the phone's
  * files or YouTube.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { store } from '../state/store';
 import { listenTogether } from '../state/listenTogether';
+import { phoneLink } from '../state/phoneLink';
 import { Switch, formatTime } from '../ui/common';
 import { IconTogether } from '../ui/icons';
 
@@ -23,7 +24,15 @@ export function ListenTogetherScreen() {
   const settings = store((s) => s.settings);
   const updateSettings = store((s) => s.updateSettings);
   const lt = listenTogether();
+  const pl = phoneLink();
   const [joinCode, setJoinCode] = useState('');
+
+  // When this page is served by the phone itself (http://<phone>:<port>), prefill its address.
+  useEffect(() => {
+    if (window.location.protocol === 'http:' && !window.location.hostname.endsWith('github.io')) {
+      phoneLink.getState().setBaseUrl(window.location.origin);
+    }
+  }, []);
 
   const inRoom = lt.roomCode !== null;
 
@@ -48,6 +57,75 @@ export function ListenTogetherScreen() {
           </div>
         </div>
       )}
+
+      <div className="card">
+        <h3>Phone on this network</h3>
+        <div className="hint">
+          In the app: Listen Together → “Serve to web”. It shows an address and a code. Open this
+          site from that address (or type it below) and enter the code to play the phone's audio on
+          this device. Same Wi‑Fi required; no internet or relay needed.
+        </div>
+        {!pl.connected ? (
+          <>
+            <label className="search" style={{ marginTop: 10 }}>
+              <input
+                value={pl.baseUrl}
+                placeholder="http://192.168.x.x:8787"
+                onChange={(e) => pl.setBaseUrl(e.target.value)}
+              />
+            </label>
+            <div className="row" style={{ gap: 8, marginTop: 8 }}>
+              <label className="search" style={{ flex: 1 }}>
+                <input
+                  value={pl.code}
+                  placeholder="Code"
+                  onChange={(e) => pl.setCode(e.target.value)}
+                />
+              </label>
+              <button className="btn primary" disabled={pl.connecting} onClick={() => void pl.connect()}>
+                {pl.connecting ? 'Connecting…' : 'Connect'}
+              </button>
+            </div>
+            {pl.error && <div className="hint" style={{ marginTop: 8, color: 'var(--violet)' }}>{pl.error}</div>}
+          </>
+        ) : (
+          <>
+            <div className="row" style={{ justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{pl.state?.track?.title ?? 'Nothing playing'}</div>
+                <div className="muted">{pl.state?.track?.artist ?? ''}</div>
+              </div>
+              <div className="muted">
+                {pl.state?.playing ? 'playing' : 'paused'} ·{' '}
+                {formatTime((pl.state?.positionMs ?? 0) / 1000)} /{' '}
+                {formatTime((pl.state?.durationMs ?? 0) / 1000)}
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(1, Math.round((pl.state?.durationMs ?? 0) / 1000))}
+              value={Math.round((pl.state?.positionMs ?? 0) / 1000)}
+              onChange={(e) => void pl.seek(Number(e.target.value))}
+              style={{ width: '100%', marginTop: 10 }}
+            />
+            <div className="row" style={{ gap: 8, marginTop: 8 }}>
+              <button className="btn sm" onClick={() => void pl.prev()}>
+                Prev
+              </button>
+              <button className="btn sm primary" onClick={() => void (pl.state?.playing ? pl.pause() : pl.play())}>
+                {pl.state?.playing ? 'Pause' : 'Play'}
+              </button>
+              <button className="btn sm" onClick={() => void pl.next()}>
+                Next
+              </button>
+              <button className="btn sm ghost" onClick={pl.disconnect}>
+                Disconnect
+              </button>
+            </div>
+          </>
+        )}
+      </div>
 
       {!inRoom ? (
         <>

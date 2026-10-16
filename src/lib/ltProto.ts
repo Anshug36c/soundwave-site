@@ -10,7 +10,7 @@
  * float). No protobuf library is required.
  */
 
-export type WireKind = 'string' | 'int64' | 'bool' | 'float' | 'msg' | 'repmsg' | 'repstr';
+export type WireKind = 'string' | 'int64' | 'bool' | 'float' | 'bytes' | 'msg' | 'repmsg' | 'repstr';
 
 export interface FieldSpec {
   num: number;
@@ -201,6 +201,29 @@ export const ChatMessageSchema: Schema = [
   { num: 4, name: 'timestamp', kind: 'int64' },
 ];
 
+/* Audio bridge (web <-> app): the host publishes the current track's bytes so guests that don't
+   own the file can still hear it. Extension messages beyond the app's state-sync protocol. */
+export interface LTAudioManifest {
+  trackId: string;
+  mime: string;
+  size: number;
+  durationMs: number;
+}
+export interface LTAudioChunk {
+  seq: number;
+  data: Uint8Array;
+}
+export const AudioManifestSchema: Schema = [
+  { num: 1, name: 'trackId', kind: 'string' },
+  { num: 2, name: 'mime', kind: 'string' },
+  { num: 3, name: 'size', kind: 'int64' },
+  { num: 4, name: 'durationMs', kind: 'int64' },
+];
+export const AudioChunkSchema: Schema = [
+  { num: 1, name: 'seq', kind: 'int64' },
+  { num: 2, name: 'data', kind: 'bytes' },
+];
+
 /* ------------------------------------ low-level wire ------------------------------------ */
 
 const WT_VARINT = 0;
@@ -242,6 +265,11 @@ export function encodeMessage(msg: Record<string, unknown>, schema: Schema): Uin
         const s = value as string;
         if (s === '') continue; // proto3 default omission
         writeLenDelimited(out, f.num, utf8Bytes(s));
+        break;
+      }
+      case 'bytes': {
+        const b = value as Uint8Array;
+        if (b && b.length) writeLenDelimited(out, f.num, Array.from(b));
         break;
       }
       case 'int64':
@@ -336,6 +364,7 @@ export function decodeMessage<T = Record<string, unknown>>(buf: Uint8Array, sche
     else if (f.kind === 'int64') out[f.name] = 0;
     else if (f.kind === 'float') out[f.name] = 0;
     else if (f.kind === 'string') out[f.name] = '';
+    else if (f.kind === 'bytes') out[f.name] = new Uint8Array(0);
     else if (f.kind === 'msg') out[f.name] = null;
   }
   for (const raw of readFields(buf)) {
@@ -344,6 +373,9 @@ export function decodeMessage<T = Record<string, unknown>>(buf: Uint8Array, sche
     switch (f.kind) {
       case 'string':
         out[f.name] = new TextDecoder().decode(raw.bytes);
+        break;
+      case 'bytes':
+        out[f.name] = raw.bytes ?? new Uint8Array(0);
         break;
       case 'int64':
         out[f.name] = raw.varint ?? 0;

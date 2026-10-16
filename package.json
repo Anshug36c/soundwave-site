@@ -20,7 +20,9 @@
     "smoke": "npm run fixtures && npm run build && npm run smoke:serve",
     "relay": "node server/relay.mjs",
     "test:relay": "node server/selftest.mjs",
-    "verify": "npm run typecheck && npm run test && npm run test:relay && npm run smoke"
+    "verify": "npm run typecheck && npm run test && npm run test:relay && npm run smoke && npm run smoke:lt && npm run smoke:phonelink",
+    "smoke:phonelink": "node scripts/smoke-phonelink.mjs",
+    "phone-sim": "node scripts/phone-sim.mjs"
   },
   "dependencies": {
     "idb": "^8.0.4",

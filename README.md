@@ -35,6 +35,14 @@ device.
 - **Themes** — dark (default), light, or system, using Soundwave's real palette.
 - **Installable** — a web manifest and icons so it can be added to a home screen.
 
+## Screenshots
+
+Captured from the deployed site driving a real headless browser (`scripts/screenshot.mjs`).
+
+| Library | Now playing | Equalizer | Local Taste Engine |
+| --- | --- | --- | --- |
+| ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) | ![Equalizer](docs/screenshots/equalizer.png) | ![Taste](docs/screenshots/taste.png) |
+
 ## Tech
 
 React 18 · TypeScript · Zustand · Vite · Web Audio API · IndexedDB (`idb`) · `music-metadata`.

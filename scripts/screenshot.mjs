@@ -51,5 +51,10 @@ await page.waitForSelector('.taste-hero');
 await page.waitForTimeout(400);
 await shot('06-taste.png');
 
+await page.locator('.nav-item', { hasText: 'Together' }).click();
+await page.waitForSelector('.page-title');
+await page.waitForTimeout(400);
+await shot('07-together.png');
+
 await browser.close();
 console.log('screenshots written to', OUT);

@@ -43,9 +43,9 @@ device.
 
 Captured from the deployed site driving a real headless browser (`scripts/screenshot.mjs`).
 
-| Library | Now playing | Equalizer | Local Taste Engine |
-| --- | --- | --- | --- |
-| ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) | ![Equalizer](docs/screenshots/equalizer.png) | ![Taste](docs/screenshots/taste.png) |
+| Library | Now playing | Equalizer | Local Taste Engine | Listen Together |
+| --- | --- | --- | --- | --- |
+| ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) | ![Equalizer](docs/screenshots/equalizer.png) | ![Taste](docs/screenshots/taste.png) | ![Together](docs/screenshots/together.png) |
 
 ## Listen Together
 

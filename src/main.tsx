@@ -4,6 +4,7 @@ import { App } from './App';
 import { getSharedEngine, store } from './state/store';
 import { listenTogether, getStreamPlayer } from './state/listenTogether';
 import { phoneLink, getPhoneAudio } from './state/phoneLink';
+import { remoteStore, getRemoteAudio } from './state/remote';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -60,6 +61,17 @@ Object.defineProperty(window, '__soundwave', {
     /** Phone-LAN link session store (Mode A). */
     get phoneLink() {
       return phoneLink;
+    },
+    /** Remote Web Player store (Phone tab: the app provides, the browser plays). */
+    get remote() {
+      return remoteStore;
+    },
+    /** The <audio> element playing bridge audio in the Remote Web Player. */
+    get remoteAudio() {
+      const a = getRemoteAudio();
+      return a
+        ? { paused: a.paused, currentTime: a.currentTime, duration: a.duration, readyState: a.readyState, src: a.src }
+        : null;
     },
     /** The <audio> element streaming the phone's audio (Mode A). */
     get phoneAudio() {

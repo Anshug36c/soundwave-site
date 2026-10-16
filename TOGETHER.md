@@ -1,3 +1,8 @@
+> **Newer, recommended:** the **Phone** tab (Remote Web Player) makes SoundWave a music
+> provider — the phone searches/resolves, this page plays with its own queue, and the phone's
+> player is never touched, on LAN or over a free no-account tunnel. The two modes below are
+> the earlier Listen Together-based approaches and are kept for compatibility.
+
 
 ## Playing the phone's actual audio on the web
 

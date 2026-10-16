@@ -30,6 +30,7 @@ device.
 - **Local Taste Engine** — offline scoring of your own listening history (play time, skips, likes,
   recency, time of day) that builds a "My Taste Mix", with a per-track breakdown of *why* each track
   ranked where it did.
+- **Phone (Remote Web Player)** — the Soundwave Android app as a music *provider*: it searches YouTube Music and resolves tracks, this page plays them with its own player and queue. Nothing plays on the phone. LAN (phone-served page) + free no-account tunnel for other networks. See [Phone](#phone--music-from-your-android-played-here).
 - **Listen Together** — synced group listening with the **Soundwave Android app** (and other web
   sessions). The web build speaks the app's own relay protocol (binary protobuf `Envelope` frames
   over WebSocket, ported from `listentogether.proto`): create or join a room, and play/pause/seek/
@@ -46,6 +47,18 @@ Captured from the deployed site driving a real headless browser (`scripts/screen
 | Library | Now playing | Equalizer | Local Taste Engine | Listen Together |
 | --- | --- | --- | --- | --- |
 | ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) | ![Equalizer](docs/screenshots/equalizer.png) | ![Taste](docs/screenshots/taste.png) | ![Together](docs/screenshots/together.png) |
+
+## Phone — music from your Android, played here
+
+The **Phone** tab turns the SoundWave Android app into a music provider for this page:
+
+1. Android: SoundWave → Settings → **Remote Web Player** → enable (plus the free tunnel for off-network use). No account, no port forwarding — the phone dials out over SSH to localhost.run/serveo and shows a temporary HTTPS address.
+2. Here: **Phone** tab → paste that address + the 6-digit pairing code → **Connect**. "Connected" is only shown after a health check *and* an authenticated session check pass.
+3. Search (runs on the phone), tap a track: it plays **here**, with this page's own queue, seek (byte-range), lock-screen controls and next/previous. The phone's own player, queue and notification are never touched — it can keep playing something else.
+
+Same Wi-Fi? Even simpler: SoundWave also serves a small player page itself at its LAN address (shown with a QR code in the app) — open it in Safari. A secure page like this one cannot call the phone's `http://192.168…` address directly (browser mixed-content rules), which is why the phone serves that page; the tunnel path above also works on the same Wi-Fi, just via the internet.
+
+Security in one breath: single-use 6-digit pairing codes (rate-limited), revocable 12-hour session tokens kept in `sessionStorage`, expiring stream grants, and the signed upstream audio URL never leaves the phone. Full details in the app's `REMOTE_WEB_PLAYER.md`.
 
 ## Listen Together
 

@@ -10,6 +10,7 @@ import { TasteScreen } from './screens/TasteScreen';
 import { EqualizerScreen } from './screens/EqualizerScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ListenTogetherScreen } from './screens/ListenTogetherScreen';
+import { RemoteScreen } from './screens/RemoteScreen';
 import { PlayerBar } from './components/PlayerBar';
 import { NowPlayingSheet } from './components/NowPlayingSheet';
 import { Toasts } from './components/Toasts';
@@ -17,6 +18,7 @@ import { ImportProgress } from './components/ImportProgress';
 import {
   IconEqualizer,
   IconLibrary,
+  IconPhone,
   IconPlaylist,
   IconSettings,
   IconTaste,
@@ -28,6 +30,7 @@ const NAV: { tab: Tab; label: string; Icon: typeof IconLibrary }[] = [
   { tab: 'playlists', label: 'Playlists', Icon: IconPlaylist },
   { tab: 'taste', label: 'Taste', Icon: IconTaste },
   { tab: 'equalizer', label: 'EQ', Icon: IconEqualizer },
+  { tab: 'phone', label: 'Phone', Icon: IconPhone },
   { tab: 'together', label: 'Together', Icon: IconTogether },
   { tab: 'settings', label: 'Settings', Icon: IconSettings },
 ];
@@ -99,6 +102,8 @@ export function App() {
         return <TasteScreen />;
       case 'equalizer':
         return <EqualizerScreen />;
+      case 'phone':
+        return <RemoteScreen />;
       case 'together':
         return <ListenTogetherScreen />;
       case 'settings':

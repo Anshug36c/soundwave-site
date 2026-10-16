@@ -59,11 +59,13 @@ export function ListenTogetherScreen() {
       )}
 
       <div className="card">
-        <h3>Phone on this network</h3>
+        <h3>Phone on this network (legacy)</h3>
         <div className="hint">
-          In the app: Listen Together → “Serve to web”. It shows an address and a code. Open this
-          site from that address (or type it below) and enter the code to play the phone's audio on
-          this device. Same Wi‑Fi required; no internet or relay needed.
+          Legacy mode: this mirrors and controls what the phone itself is playing, so the sound
+          setup is the phone's. For music that plays <strong>here in the browser</strong> — searched
+          and resolved by SoundWave without touching its player — use the <strong>Phone</strong> tab
+          instead (Remote Web Player). Kept for compatibility: in the app, Listen Together → “Serve
+          to web” shows an address and a code for this card. Same Wi‑Fi required.
         </div>
         {!pl.connected ? (
           <>

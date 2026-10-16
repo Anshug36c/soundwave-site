@@ -37,6 +37,10 @@ export interface Settings {
   eqBands: ParametricEQBand[];
   eqPreamp: number;
   theme: 'dark' | 'light' | 'system';
+  /** Listen Together relay URL (the same server the Soundwave app is pointed at). */
+  ltServerUrl: string;
+  /** Display name used in Listen Together rooms. */
+  ltUsername: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -52,6 +56,8 @@ export const DEFAULT_SETTINGS: Settings = {
   eqBands: [],
   eqPreamp: 0,
   theme: 'dark',
+  ltServerUrl: 'wss://metroserverx.meowery.eu/ws',
+  ltUsername: 'Web listener',
 };
 
 interface SoundwaveDB extends DBSchema {

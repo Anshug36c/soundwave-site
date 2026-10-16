@@ -1,0 +1,14 @@
+{
+  "name": "soundwave-lt-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-hostable relay server for the Soundwave/Echo 'Listen Together' protobuf-over-WebSocket protocol.",
+  "main": "relay.mjs",
+  "scripts": {
+    "start": "node relay.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -22,6 +22,7 @@ from the Kotlin source. Each ported module names its Android origin in a header 
 | `src/audio/playbackCutoffGuard.ts` | `playback/.../PlaybackCutoffGuard.kt` | The v1.4.3 premature-end recovery: threshold, per-track retry budget, and `computeEffectiveDuration`. |
 | `src/audio/adaptivePreArm.ts` | `playback/.../crossfade/AdaptivePreArmManager.kt` | Base/max lead times (20s / 35s), the 8s slow-prep threshold, proportional expansion, 2s decay, and the 5-sample window. |
 | `src/lib/eqParser.ts` | `dsp-core/.../parser/ParametricEQParser.kt` | EqualizerAPO / AutoEq parsing, including its quirks (dropping `ON`-less filter lines, LSC/HSC/PK/LPQ/HPQ match order, validation bounds, `MAX_BANDS` 20). |
+| `src/lib/ltProto.ts`, `src/lib/ltClient.ts`, `src/state/listenTogether.ts`, `server/relay.mjs` | `app/src/main/proto/listentogether.proto`, `app/.../listentogether/{Protocol,MessageCodec,ListenTogetherClient}.kt` | The **Listen Together** wire protocol: protobuf `Envelope` framing and every message/field number, the JSON-vs-protobuf auto-detection, gzip `compressed` payloads, `ping`/`pong` keepalive, exponential-backoff reconnect with session tokens, and the host/guest playback-sync semantics. `server/relay.mjs` is an independent server-side implementation of the same protocol so rooms can be self-hosted. |
 | `src/lib/types.ts` (EQ + stats shapes) | `dsp-core/.../models/*.kt`, `core/.../db/entities/SongPlayStatsEntity.kt` | `ParametricEQBand` (default Q 1.41), `FilterType`, `SavedEQProfile`, `ParametricEQ`, and the play-stats fields. |
 
 The parametric EQ maps onto the Web Audio `BiquadFilterNode`, which is the same biquad model the
@@ -47,6 +48,12 @@ build is not mistaken for the app:
 - **No Taste seed *expansion*.** On Android the engine expands its seeds through
   `YouTube.next`/`related`. With no backend, the web engine scores and orders the tracks already in
   your library; the *scoring* is identical, only the candidate pool is smaller.
+- **Listen Together syncs state, not audio.** The protocol carries playback actions and track
+  *metadata*, never audio bytes — every participant plays its own copy. A web guest therefore plays
+  only tracks already in its local library (matched by title/artist) and flags anything else as
+  unavailable; it cannot stream the host's files or YouTube. Hosting on the public community relay
+  is also restricted by that relay to allowlisted clients, so self-hosting `server/relay.mjs` is
+  the supported way for the web to host a room.
 - **No USB/DAC or native audio effects.** Those need the Android `:usbaudio` / `:audio-dsp` native
   layers, which have no browser equivalent here.
 

@@ -54,6 +54,12 @@ try {
   failed += (await run('scripts/smoke.mjs')) === 0 ? 0 : 1;
   console.log('');
   failed += (await run('scripts/smoke-engine.mjs')) === 0 ? 0 : 1;
+  // Tear down this preview so the Listen Together suite can bind the port with its own
+  // preview + relay (it is self-contained).
+  server.kill('SIGTERM');
+  await new Promise((r) => setTimeout(r, 800));
+  console.log('');
+  failed += (await run('scripts/smoke-listen-together.mjs')) === 0 ? 0 : 1;
 } catch (e) {
   console.error('[run-smoke]', e.message);
   failed = 1;

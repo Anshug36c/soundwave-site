@@ -44,7 +44,7 @@ import {
 } from '../lib/db';
 import type { ParametricEQ, PlayStats, Playlist, SavedEQProfile, SortDir, SortKey, Track } from '../lib/types';
 
-export type Tab = 'library' | 'playlists' | 'taste' | 'equalizer' | 'settings';
+export type Tab = 'library' | 'playlists' | 'taste' | 'equalizer' | 'together' | 'settings';
 
 export interface Capabilities {
   fileSystemAccess: boolean;
@@ -104,6 +104,8 @@ interface StoreState {
   playTrack: (id: string, context?: string[]) => Promise<void>;
   playQueue: (ids: string[], startIndex?: number) => Promise<void>;
   togglePlay: () => Promise<void>;
+  play: () => Promise<void>;
+  pause: () => Promise<void>;
   next: (reason?: TransitionReason) => Promise<void>;
   previous: () => Promise<void>;
   seek: (sec: number) => void;
@@ -616,6 +618,14 @@ export const store = create<StoreState>((set, get) => {
       }
       const eng = getEngine();
       await eng.toggle();
+    },
+
+    async play() {
+      await getEngine().play();
+    },
+
+    async pause() {
+      await getEngine().pause();
     },
 
     async next(reason = 'manual') {

@@ -7,6 +7,7 @@ declare global {
       readonly version: string;
       readonly engine: import('./audio/engine').AudioEngine;
       readonly store: typeof import('./state/store').store;
+      readonly listenTogether: typeof import('./state/listenTogether').listenTogether;
       readonly audioState: {
         contextState: AudioContextState;
         trackId: string | null;

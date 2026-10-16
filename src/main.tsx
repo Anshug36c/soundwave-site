@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { getSharedEngine, store } from './state/store';
+import { listenTogether } from './state/listenTogether';
 import './styles.css';
 
 const container = document.getElementById('root');
@@ -34,6 +35,10 @@ Object.defineProperty(window, '__soundwave', {
     /** Live store reference — the smoke test reads state and drives settings through actions. */
     get store() {
       return store;
+    },
+    /** Live Listen Together session store (room/role/sync state + actions). */
+    get listenTogether() {
+      return listenTogether;
     },
     snapshot() {
       const s = store.getState();

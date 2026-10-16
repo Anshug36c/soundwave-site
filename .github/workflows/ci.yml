@@ -37,6 +37,9 @@ jobs:
       - name: Unit tests (Vitest — ported algorithms)
         run: npm test
 
+      - name: Listen Together relay protocol self-test
+        run: npm run test:relay
+
       - name: Build (Vite production bundle)
         run: npm run build
 
@@ -46,7 +49,7 @@ jobs:
       - name: Generate audio fixtures
         run: npm run fixtures
 
-      - name: Browser smoke tests (serve dist/ + drive headless Chromium)
+      - name: Browser smoke tests (playback, engine, and Listen Together interop)
         run: npm run smoke:serve
         env:
           SMOKE_AUDIO_DIR: ${{ github.workspace }}/.fixtures/audio

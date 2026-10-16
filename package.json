@@ -15,9 +15,12 @@
     "fixtures": "node scripts/make-fixtures.mjs .fixtures/audio 6",
     "smoke:e2e": "node scripts/smoke.mjs",
     "smoke:engine": "node scripts/smoke-engine.mjs",
+    "smoke:lt": "node scripts/smoke-listen-together.mjs",
     "smoke:serve": "node scripts/run-preview-and-smoke.mjs",
     "smoke": "npm run fixtures && npm run build && npm run smoke:serve",
-    "verify": "npm run typecheck && npm run test && npm run smoke"
+    "relay": "node server/relay.mjs",
+    "test:relay": "node server/selftest.mjs",
+    "verify": "npm run typecheck && npm run test && npm run test:relay && npm run smoke"
   },
   "dependencies": {
     "idb": "^8.0.4",
@@ -34,6 +37,7 @@
     "playwright": "^1.64.1",
     "typescript": "~5.7.2",
     "vite": "^6.4.4",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "ws": "^8.22.0"
   }
 }

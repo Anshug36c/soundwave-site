@@ -232,3 +232,13 @@ export const IconGithub = (p: P) => (
     <path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21" />
   </Svg>
 );
+
+/** Listen Together: a group of listeners (two figures), matching the app's social glyph. */
+export const IconTogether = (p: P) => (
+  <Svg {...p}>
+    <path d="M9 11a3.2 3.2 0 1 0 0-6.4A3.2 3.2 0 0 0 9 11Z" />
+    <path d="M2.5 19c.6-3.2 3.2-5 6.5-5s5.9 1.8 6.5 5" />
+    <path d="M16 4.8a3.2 3.2 0 0 1 0 6.2" />
+    <path d="M17.5 14.3c2.1.6 3.6 2.2 4 4.7" />
+  </Svg>
+);

@@ -14,6 +14,7 @@ import {
   type RemoteSessionInfo,
   type RemoteTrack,
 } from '../lib/remoteClient';
+import { playerSource } from './playerSource';
 
 export type RemotePhase = 'offline' | 'checking' | 'online' | 'error';
 
@@ -29,6 +30,9 @@ interface RemoteState {
   searching: boolean;
   results: RemoteTrack[];
 
+  recommended: RemoteTrack[];
+  recommendedLoading: boolean;
+
   queue: RemoteTrack[];
   index: number;
   playing: boolean;
@@ -36,6 +40,8 @@ interface RemoteState {
   durationSec: number;
   resolving: boolean;
   formatWarning: string | null;
+  shuffle: boolean;
+  repeat: 'off' | 'all' | 'one';
 
   setBaseUrl: (url: string) => void;
   setCode: (code: string) => void;
@@ -44,7 +50,9 @@ interface RemoteState {
   reconnect: () => Promise<void>;
   disconnect: () => Promise<void>;
   search: () => Promise<void>;
+  loadRecommended: () => Promise<void>;
   playResultsAt: (index: number) => Promise<void>;
+  playListAt: (tracks: RemoteTrack[], index: number) => Promise<void>;
   playQueueAt: (index: number) => Promise<void>;
   enqueue: (track: RemoteTrack) => void;
   removeFromQueue: (index: number) => void;
@@ -52,6 +60,9 @@ interface RemoteState {
   next: (auto?: boolean) => Promise<void>;
   prev: () => Promise<void>;
   seek: (sec: number) => void;
+  pausePlayback: () => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
 }
 
 const BASE_KEY = 'sw.remote.base';
@@ -226,6 +237,7 @@ export const remoteStore = create<RemoteState>((set, get) => {
     const track = currentTrack();
     const c = client;
     if (!track || !c) return;
+    playerSource.getState().setSource('remote');
     const el = ensureAudio();
     set({ resolving: true, error: null, formatWarning: null });
     try {
@@ -266,6 +278,9 @@ export const remoteStore = create<RemoteState>((set, get) => {
     searching: false,
     results: [],
 
+    recommended: [],
+    recommendedLoading: false,
+
     queue: [],
     index: -1,
     playing: false,
@@ -273,6 +288,8 @@ export const remoteStore = create<RemoteState>((set, get) => {
     durationSec: 0,
     resolving: false,
     formatWarning: null,
+    shuffle: false,
+    repeat: 'off',
 
     setBaseUrl: (url) => {
       storageSet(BASE_KEY, url.trim());
@@ -306,6 +323,7 @@ export const remoteStore = create<RemoteState>((set, get) => {
         set({ phase: 'online', session: info.session, error: null, code: '' });
         startReportTimer();
         reportState(true);
+        void get().loadRecommended();
       } catch (e) {
         if (e instanceof RemoteError && e.code === 'PAIRING_REQUIRED') {
           set({ phase: 'offline', error: e.message });
@@ -324,6 +342,7 @@ export const remoteStore = create<RemoteState>((set, get) => {
         const info = await c.session();
         set({ phase: 'online', session: info.session, error: null });
         startReportTimer();
+        void get().loadRecommended();
       } catch (e) {
         failSession(e);
       }
@@ -354,7 +373,23 @@ export const remoteStore = create<RemoteState>((set, get) => {
         durationSec: 0,
         error: null,
         notice: null,
+        recommended: [],
       });
+    },
+
+    loadRecommended: async () => {
+      const c = client;
+      if (!c || get().phase !== 'online' || get().recommendedLoading) return;
+      set({ recommendedLoading: true });
+      try {
+        const recommended = await c.recommendations();
+        set({ recommended, recommendedLoading: false });
+      } catch (e) {
+        set({ recommendedLoading: false });
+        if (e instanceof RemoteError && e.code === 'UNAUTHORIZED') failSession(e);
+        // Recommendations are a home-screen extra: a failure leaves the
+        // section empty (with its own hint) instead of erroring the screen.
+      }
     },
 
     search: async () => {
@@ -373,6 +408,12 @@ export const remoteStore = create<RemoteState>((set, get) => {
 
     playResultsAt: async (index) => {
       set({ queue: get().results.slice(), index });
+      await playCurrent();
+    },
+
+    playListAt: async (tracks, index) => {
+      if (index < 0 || index >= tracks.length) return;
+      set({ queue: tracks.slice(), index });
       await playCurrent();
     },
 
@@ -423,9 +464,34 @@ export const remoteStore = create<RemoteState>((set, get) => {
     },
 
     next: async (auto = false) => {
-      const { queue, index } = get();
-      if (index < queue.length - 1) {
-        set({ index: index + 1 });
+      const { queue, index, shuffle, repeat } = get();
+      if (queue.length === 0 || index < 0) return;
+      if (auto && repeat === 'one') {
+        const el = audio;
+        if (el) {
+          el.currentTime = 0;
+          try {
+            await el.play();
+          } catch {
+            await playCurrent();
+          }
+        } else {
+          await playCurrent();
+        }
+        return;
+      }
+      let target: number | null = null;
+      if (shuffle && queue.length > 1) {
+        do {
+          target = Math.floor(Math.random() * queue.length);
+        } while (target === index);
+      } else if (index < queue.length - 1) {
+        target = index + 1;
+      } else if (repeat === 'all') {
+        target = 0;
+      }
+      if (target !== null) {
+        set({ index: target });
         await playCurrent();
       } else if (!auto) {
         set({ notice: 'End of the queue.' });
@@ -456,6 +522,17 @@ export const remoteStore = create<RemoteState>((set, get) => {
         el.currentTime = Math.min(Math.max(0, sec), el.duration);
         set({ positionSec: el.currentTime });
       }
+    },
+
+    pausePlayback: () => {
+      audio?.pause();
+    },
+
+    toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
+
+    cycleRepeat: () => {
+      const order: Array<'off' | 'all' | 'one'> = ['off', 'all', 'one'];
+      set((s) => ({ repeat: order[(order.indexOf(s.repeat) + 1) % order.length] }));
     },
   };
 });

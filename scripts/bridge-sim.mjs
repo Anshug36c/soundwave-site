@@ -10,6 +10,7 @@
  *   GET  /api/session           -> session info          (Bearer token)
  *   DELETE /api/session         -> revoke                (Bearer token)
  *   GET  /api/search?q=         -> fake catalog matches  (Bearer token)
+ *   GET  /api/recommendations   -> the fake catalog as home feed (Bearer token)
  *   POST /api/resolve {trackId} -> {streamPath, ...}     (Bearer token)
  *   GET  /api/stream/<grant>?t= -> WAV bytes, Range-capable
  *   POST /api/state             -> records the web player's own state
@@ -137,6 +138,10 @@ const server = createServer(async (req, res) => {
       const results = TRACKS.filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(q) || q.length === 0)
         .map(({ wav, ...meta }) => meta);
       return json(res, 200, { query: q, results });
+    }
+    if (path === '/api/recommendations' && req.method === 'GET') {
+      const results = TRACKS.map(({ wav, ...meta }) => meta);
+      return json(res, 200, { results });
     }
     if (path === '/api/resolve' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req)) || '{}');

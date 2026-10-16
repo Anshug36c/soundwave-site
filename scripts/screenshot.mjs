@@ -1,6 +1,6 @@
 /**
- * Captures screenshots of the deployed site for the final report. Not part of the test gate —
- * a convenience for showing the live result. Usage: node scripts/screenshot.mjs <baseUrl> <outDir>
+ * Captures screenshots of the site for reports. Not part of the test gate —
+ * a convenience for showing the result. Usage: node scripts/screenshot.mjs <baseUrl> <outDir>
  */
 import { chromium } from 'playwright';
 import { readdirSync, mkdirSync } from 'node:fs';
@@ -20,41 +20,35 @@ const shot = (name) => page.screenshot({ path: path.join(OUT, name) });
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForSelector('.brand');
-await shot('01-empty.png');
+await shot('01-home.png');
 
+await page.locator('.nav-item', { hasText: 'Library' }).click();
 await page.locator('input[type="file"]').first().setInputFiles(files);
 await page.waitForSelector('.track-row');
 await page.waitForTimeout(400);
 await shot('02-library.png');
 
-await page.locator('.btn.primary', { hasText: 'Play all' }).first().click();
+await page.locator('.track-row').first().click();
 await page.waitForFunction(() => window.__soundwave.audioState.trackId !== null, null, { timeout: 10000 });
 await page.waitForTimeout(1200);
 await shot('03-minibar.png');
 
-// Open the now-playing sheet via the mini bar.
+// Open the full player via the mini player.
 await page.locator('.playerbar-inner').click();
 await page.waitForSelector('.sheet');
 await page.waitForTimeout(1400);
-await shot('04-nowplaying.png');
+await shot('04-player.png');
 await page.locator('.sheet .btn.icon.ghost').first().click();
 await page.waitForTimeout(300);
 
-await page.locator('.nav-item', { hasText: 'EQ' }).click();
-await page.waitForSelector('.preset-row .chip');
-await page.locator('.preset-row .chip', { hasText: 'Bass Boost' }).first().click();
-await page.waitForTimeout(500);
-await shot('05-equalizer.png');
-
-await page.locator('.nav-item', { hasText: 'Taste' }).click();
-await page.waitForSelector('.taste-hero');
+await page.locator('.nav-item', { hasText: 'Search' }).click();
 await page.waitForTimeout(400);
-await shot('06-taste.png');
+await shot('05-search.png');
 
-await page.locator('.nav-item', { hasText: 'Together' }).click();
+await page.locator('.nav-item', { hasText: 'Phone' }).click();
 await page.waitForSelector('.page-title');
 await page.waitForTimeout(400);
-await shot('07-together.png');
+await shot('06-phone.png');
 
 await browser.close();
 console.log('screenshots written to', OUT);

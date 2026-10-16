@@ -7,10 +7,7 @@ declare global {
       readonly version: string;
       readonly engine: import('./audio/engine').AudioEngine;
       readonly store: typeof import('./state/store').store;
-      readonly listenTogether: typeof import('./state/listenTogether').listenTogether;
-      /** Phone-LAN link store (Mode A: the app serves this site + its audio). */
-      readonly phoneLink: typeof import('./state/phoneLink').phoneLink;
-      /** Remote Web Player store (Phone tab: the app provides, the browser plays). */
+      /** Remote Web Player store (the app provides, the browser plays). */
       readonly remote: typeof import('./state/remote').remoteStore;
       /** The <audio> element playing bridge audio in the Remote Web Player. */
       readonly remoteAudio: {
@@ -20,26 +17,6 @@ declare global {
         readyState: number;
         src: string;
       } | null;
-      /** The <audio> element streaming the phone's audio in Mode A. */
-      readonly phoneAudio: {
-        paused: boolean;
-        currentTime: number;
-        duration: number;
-        readyState: number;
-        src: string;
-      } | null;
-      /** Listen Together audio-bridge (Mode B) stream diagnostics. */
-      readonly streamState: {
-        trackId: string | null;
-        size: number;
-        received: number;
-        ready: boolean;
-        usingStream: boolean;
-        playing: boolean;
-        positionSec: number;
-        durationSec: number;
-        contextState: AudioContextState;
-      };
       readonly audioState: {
         contextState: AudioContextState;
         trackId: string | null;
@@ -53,11 +30,8 @@ declare global {
         queueLength: number;
         currentQueueId: string | null;
         playing: boolean;
-        crossfading: boolean;
         trackCount: number;
-        statsCount: number;
-        stats: Record<string, import('./lib/types').PlayStats>;
-        settings: { crossfadeEnabled: boolean; repeat: 'off' | 'all' | 'one' };
+        settings: { repeat: 'off' | 'all' | 'one'; shuffle: boolean };
       };
     };
   }

@@ -8,7 +8,8 @@
  * and the simulator is skipped (used locally against the Kotlin server and
  * through a real tunnel).
  *
- * Asserts: health-gated pairing (wrong code rejected), search via phone,
+ * Asserts: health-gated pairing (wrong code rejected), Home recommendations
+ * and search via phone,
  * browser-side playback advancing, Range seek, pause/resume, queue + next,
  * and that the site's local library player is never started by any of it.
  *
@@ -109,9 +110,15 @@ try {
   if (!before.playing && before.queueLength === 0) ok('local library player idle before remote playback');
   else fail(`local player unexpectedly active: ${JSON.stringify(before)}`);
 
+  // Home recommendations come from the phone's home feed (simulator here).
+  await page.locator('.nav-item', { hasText: 'Home' }).click();
+  await page.waitForSelector('[data-testid="recommended-track"]', { timeout: 8000 });
+  ok('Home recommendations arrived from the bridge');
+
   // Search runs on the phone (simulator), results render here.
+  await page.locator('.nav-item', { hasText: 'Search' }).click();
   await page.locator('input[placeholder*="Search songs"]').fill('tone');
-  await page.locator('button', { hasText: 'Search' }).click();
+  await page.locator('input[placeholder*="Search songs"]').press('Enter');
   await page.waitForSelector('[data-testid="remote-track"]', { timeout: 8000 });
   ok('search results arrived from the bridge');
 

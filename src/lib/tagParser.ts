@@ -8,10 +8,17 @@
  */
 
 import { parseBlob } from 'music-metadata';
-import { trackKeyOf } from './tasteScoring';
 import type { Track } from './types';
 
 const SUPPORTED_EXT = /\.(mp3|m4a|aac|flac|ogg|oga|opus|wav|webm|mp4|aiff?|wma)$/i;
+
+/**
+ * Track identity: `"${title.trim()}|${artist.trim()}".lowercase()` — the same
+ * key the Android app's SongPlayStatsRepository uses.
+ */
+export function trackKeyOf(title: string, artist: string): string {
+  return `${title.trim()}|${artist.trim()}`.toLowerCase();
+}
 
 export function isSupportedAudioFile(name: string, type?: string): boolean {
   if (type && type.startsWith('audio/')) return true;

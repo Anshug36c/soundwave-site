@@ -2,8 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { getSharedEngine, store } from './state/store';
-import { listenTogether, getStreamPlayer } from './state/listenTogether';
-import { phoneLink, getPhoneAudio } from './state/phoneLink';
 import { remoteStore, getRemoteAudio } from './state/remote';
 import './styles.css';
 
@@ -11,9 +9,10 @@ const container = document.getElementById('root');
 if (!container) throw new Error('Root container missing');
 
 /**
- * A small diagnostic handle, handy in the field and for the E2E smoke test. It exposes the shared
- * audio engine's observable state and a read-only snapshot of the store, without letting callers
- * mutate the queue directly (the store's own actions remain the only mutation path).
+ * A small diagnostic handle, handy in the field and for the E2E smoke tests. It exposes the
+ * shared audio engine's observable state and a read-only snapshot of the stores, without
+ * letting callers mutate the queues directly (the stores' own actions remain the only
+ * mutation path).
  */
 Object.defineProperty(window, '__soundwave', {
   value: {
@@ -34,48 +33,17 @@ Object.defineProperty(window, '__soundwave', {
         deckCount: e.graph.decks.length,
       };
     },
-    /** Live store reference — the smoke test reads state and drives settings through actions. */
+    /** Live local-library store reference — smoke tests read state and drive actions. */
     get store() {
       return store;
     },
-    /** Live Listen Together session store (room/role/sync state + actions). */
-    get listenTogether() {
-      return listenTogether;
-    },
-    /** Received-audio (Listen Together audio bridge) observable state. */
-    get streamState() {
-      const s = listenTogether.getState();
-      const p = getStreamPlayer();
-      return {
-        trackId: s.streamTrackId,
-        size: s.streamSize,
-        received: s.streamReceived,
-        ready: s.streamReady,
-        usingStream: s.usingStream,
-        playing: p?.isPlaying ?? false,
-        positionSec: p?.getPositionSec() ?? 0,
-        durationSec: p?.durationSec ?? 0,
-        contextState: p?.contextState ?? 'closed',
-      };
-    },
-    /** Phone-LAN link session store (Mode A). */
-    get phoneLink() {
-      return phoneLink;
-    },
-    /** Remote Web Player store (Phone tab: the app provides, the browser plays). */
+    /** Remote Web Player store (the app provides, the browser plays). */
     get remote() {
       return remoteStore;
     },
     /** The <audio> element playing bridge audio in the Remote Web Player. */
     get remoteAudio() {
       const a = getRemoteAudio();
-      return a
-        ? { paused: a.paused, currentTime: a.currentTime, duration: a.duration, readyState: a.readyState, src: a.src }
-        : null;
-    },
-    /** The <audio> element streaming the phone's audio (Mode A). */
-    get phoneAudio() {
-      const a = getPhoneAudio();
       return a
         ? { paused: a.paused, currentTime: a.currentTime, duration: a.duration, readyState: a.readyState, src: a.src }
         : null;
@@ -87,11 +55,8 @@ Object.defineProperty(window, '__soundwave', {
         queueLength: s.queue.length,
         currentQueueId: s.queue[s.queueIndex] ?? null,
         playing: s.playing,
-        crossfading: s.crossfading,
         trackCount: s.tracks.length,
-        statsCount: Object.keys(s.stats).length,
-        stats: s.stats,
-        settings: { crossfadeEnabled: s.settings.crossfadeEnabled, repeat: s.settings.repeat },
+        settings: { repeat: s.settings.repeat, shuffle: s.settings.shuffle },
       };
     },
   },
@@ -103,4 +68,3 @@ createRoot(container).render(
     <App />
   </StrictMode>,
 );
-

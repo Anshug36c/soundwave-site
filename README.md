@@ -16,37 +16,36 @@ device.
 
 ## Features
 
-- **Library** — import files or a whole folder, parse ID3/Vorbis/MP4/FLAC tags and cover art,
-  search, sort, like, and remove. On Chromium browsers, folder access can be re-granted so the
-  library survives reloads.
-- **Playback** — play/pause, seek, next/previous, shuffle, repeat (off/all/one), volume, and OS
-  lock-screen controls via the Media Session API.
-- **Crossfade** — dual-deck Web Audio crossfade with the app's adaptive pre-arm behaviour.
-- **Playback cutoff guard** — the v1.4.3 hardening that distinguishes a genuine end-of-track from a
-  stream that died early, and recovers within a retry budget.
-- **Parametric equalizer** — the same `ParametricEQ` biquad model as the app, with presets, a
-  preamp, per-band gain, and **EqualizerAPO / AutoEq** profile import (paste one of the 8850 AutoEq
-  headphone profiles and it applies live).
-- **Local Taste Engine** — offline scoring of your own listening history (play time, skips, likes,
-  recency, time of day) that builds a "My Taste Mix", with a per-track breakdown of *why* each track
-  ranked where it did.
-- **Phone (Remote Web Player)** — the Soundwave Android app as a music *provider*: it searches YouTube Music and resolves tracks, this page plays them with its own player and queue. Nothing plays on the phone. LAN (phone-served page) + free no-account tunnel for other networks. See [Phone](#phone--music-from-your-android-played-here).
-- **Listen Together** — synced group listening with the **Soundwave Android app** (and other web
-  sessions). The web build speaks the app's own relay protocol (binary protobuf `Envelope` frames
-  over WebSocket, ported from `listentogether.proto`): create or join a room, and play/pause/seek/
-  track/queue/volume stay in lockstep across devices. See [Listen Together](#listen-together-1).
-- **Playlists** — create, fill, play, and manage local playlists.
-- **Visualiser** — live frequency bars or waveform over the artwork, from an `AnalyserNode`.
-- **Themes** — dark (default), light, or system, using Soundwave's real palette.
+- **Home (Recommended)** — Quick picks from the YouTube Music home feed, served by the
+  connected SoundWave phone (the same source the app's Home screen shows). No phone, no
+  recommendations — the screen offers to connect instead of showing placeholder data.
+- **Search** — runs on the connected phone (YouTube Music, same catalogue as the app);
+  results play here in the browser.
+- **Library** — import files or a whole folder, parse ID3/Vorbis/MP4/FLAC tags and cover
+  art, like, and remove. On Chromium browsers, folder access can be re-granted so the
+  library survives reloads. Files never leave the device.
+- **Player** — the app's player, mirrored: a floating glass mini player above a floating
+  glass bottom navigation (Home · Search · Library · Phone), and a full-screen player
+  whose backdrop is the artwork itself, blurred and darkened into black, with seek,
+  shuffle / previous / play / next / repeat, and the queue. It controls whichever player
+  you last started — this browser's library or the phone-backed one; the two queues
+  never mix.
+- **Phone (Remote Web Player)** — the connection screen. The Soundwave Android app acts
+  as a music *provider*: it searches and resolves tracks, this page plays them. Nothing
+  plays on the phone. LAN (phone-served page) + free no-account tunnel for other
+  networks. See [Phone](#phone--music-from-your-android-played-here).
+- **Playback engine** — dual-deck Web Audio with the playback cutoff guard (distinguishes
+  a genuine track end from a stream that died early) and OS lock-screen controls via the
+  Media Session API.
 - **Installable** — a web manifest and icons so it can be added to a home screen.
 
 ## Screenshots
 
 Captured from the deployed site driving a real headless browser (`scripts/screenshot.mjs`).
 
-| Library | Now playing | Equalizer | Local Taste Engine | Listen Together |
-| --- | --- | --- | --- | --- |
-| ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) | ![Equalizer](docs/screenshots/equalizer.png) | ![Taste](docs/screenshots/taste.png) | ![Together](docs/screenshots/together.png) |
+| Home | Library | Full player |
+| --- | --- | --- |
+| ![Home](docs/screenshots/home.png) | ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) |
 
 ## Phone — music from your Android, played here
 
@@ -54,46 +53,16 @@ The **Phone** tab turns the SoundWave Android app into a music provider for this
 
 1. Android: SoundWave → Settings → **Remote Web Player** → enable (plus the free tunnel for off-network use). No account, no port forwarding — the phone dials out over SSH to localhost.run/serveo and shows a temporary HTTPS address.
 2. Here: **Phone** tab → paste that address + the 6-digit pairing code → **Connect**. "Connected" is only shown after a health check *and* an authenticated session check pass.
-3. Search (runs on the phone), tap a track: it plays **here**, with this page's own queue, seek (byte-range), lock-screen controls and next/previous. The phone's own player, queue and notification are never touched — it can keep playing something else.
+3. **Home** shows your phone-powered recommendations and **Search** queries the phone's catalogue. Tap a track: it plays **here**, with this page's own queue, seek (byte-range), lock-screen controls and next/previous. The phone's own player, queue and notification are never touched — it can keep playing something else.
 
 Same Wi-Fi? Even simpler: SoundWave also serves a small player page itself at its LAN address (shown with a QR code in the app) — open it in Safari. A secure page like this one cannot call the phone's `http://192.168…` address directly (browser mixed-content rules), which is why the phone serves that page; the tunnel path above also works on the same Wi-Fi, just via the internet.
 
 Security in one breath: single-use 6-digit pairing codes (rate-limited), revocable 12-hour session tokens kept in `sessionStorage`, expiring stream grants, and the signed upstream audio URL never leaves the phone. Full details in the app's `REMOTE_WEB_PLAYER.md`.
 
-## Listen Together
-
-Synced listening with the Soundwave Android app. The app's Listen Together is a client/server
-protocol: every participant opens a WebSocket to a relay and exchanges protobuf messages
-(rooms, join approval, playback actions, resync). Soundwave Web implements the **same wire
-protocol**, so a browser is a first-class participant — no modified APK required.
-
-**Pairing with the phone:**
-
-1. Pick a relay (below) and put the *same* URL in both places:
-   - app: Settings → Integrations → Listen Together → server URL
-   - web: Together tab → Server
-2. One side **Create room**, the other **Join** with the room code. The host approves joins.
-3. Press play on the host; everyone else follows in lockstep.
-
-**Choosing a relay:**
-
-| Option | Host a room? | Notes |
-| --- | --- | --- |
-| The public community server (default, `wss://…`) | **Join only** | It allowlists who may *host* (`host_not_allowed` for everyone else), but anyone can join a room the app hosts. Good for following a phone. |
-| Your own relay (`server/`, this repo) | **Yes** | `cd server && npm install && npm start`, then point app + web at it (behind TLS for https pages). Either side can host; rooms are private to your server. |
-
-**How audio works — please read.** Listen Together syncs *playback state*, not sound: each device
-plays its own copy of the track. So as a **guest**, the browser can only play songs already in its
-local library (matched by title/artist); anything else is shown as "not in your library" rather
-than silently ignored, because a static page can't stream the phone's files or YouTube. As a
-**host**, guests need the same tracks on their devices to hear them. This is a property of the
-protocol and of static hosting, not a bug.
-
 ## Tech
 
 React 18 · TypeScript · Zustand · Vite · Web Audio API · IndexedDB (`idb`) · `music-metadata`.
-Tests: Vitest (unit) + Playwright (browser smoke). The optional relay (`server/`) is plain Node +
-`ws`.
+Tests: Vitest (unit) + Playwright (browser smoke).
 
 ## Getting started
 
@@ -118,22 +87,20 @@ npm run verify
 ```
 
 - `npm run typecheck` — `tsc --noEmit`, strict.
-- `npm test` — **80 unit tests** over the ported algorithms. The Taste Engine, EQ parser, play-stats
-  rules, cutoff guard, pre-arm manager, and the Listen Together protobuf codec are each checked
-  against the exact behaviour of their Kotlin originals (constants, thresholds, and quirks
-  included; the codec is cross-checked against bytes captured from a live relay).
-- `npm run test:relay` — drives the `server/` relay with two simulated clients and asserts the
-  server-side routing (rooms, join approval, playback broadcast, resync, guest-control rules).
+- `npm test` — **30 unit tests** over the audio engine guards and the remote bridge
+  client (pairing, auth headers, error mapping), checked against the bridge protocol.
 - `npm run smoke` — builds, serves `dist/`, and drives a real headless Chromium:
-  - `scripts/smoke.mjs` — mount → import → parse → play (AudioContext running, playhead advancing)
-    → Taste → EQ → Settings → persistence across reload, failing on any console error.
-  - `scripts/smoke-engine.mjs` — the three end-of-track behaviours a "does it play" check can't see:
-    natural-end **auto-advance**, **single** history booking (no double-count), and crossfade
-    **queue-index sync**.
-  - `scripts/smoke-listen-together.mjs` — real **web ↔ app interop**: a simulated phone hosts a room
-    and the browser joins as guest (resolving the host's track from its library, mirroring
-    play/pause/seek, flagging unavailable tracks), then the browser hosts and the simulated phone
-    follows. All over the live protobuf wire protocol via the relay.
+  - `scripts/smoke.mjs` — Home connect prompt → import → parse → play (AudioContext
+    running, playhead advancing) → full player opens/closes → nav is exactly
+    Home/Search/Library/Phone → persistence across reload, failing on any console error.
+  - `scripts/smoke-engine.mjs` — the end-of-track behaviours a "does it play" check
+    can't see: natural-end **auto-advance** (store index matches the engine's track)
+    and **repeat-one** replay.
+  - `scripts/smoke-bridge.mjs` — against a protocol simulator of the phone bridge:
+    wrong pairing code rejected, Home recommendations + Search served by the phone,
+    browser-side playback advancing, Range seek, pause/resume, queue/next, and the
+    site's local player provably never started by any of it. Run standalone with
+    `npm run smoke:bridge`.
 
 The same `verify` gate runs in CI on every push and pull request (see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
@@ -155,15 +122,13 @@ select **GitHub Actions**.
 
 ```
 src/
-  audio/      Web Audio graph, engine (transport + crossfade), cutoff guard, pre-arm manager
-  lib/        ported algorithms (taste, eq parser/presets, play-stats), Listen Together protobuf
-              codec + WebSocket client, types, IndexedDB, tags
-  state/      Zustand stores: main (UI ↔ engine ↔ storage) and listenTogether (room ↔ engine)
+  audio/      Web Audio graph, engine (transport + dual decks), cutoff guard, pre-arm
+  lib/        remote bridge client, tag parser, IndexedDB, player accent colours, types
+  state/      Zustand stores: local library player, remote (phone) player, playerSource
   ui/         shared primitives + inline SVG icon set
-  components/ player bar, now-playing sheet, visualiser, toasts, import progress
-  screens/    Library, Playlists, Taste, Equalizer, Together, Settings
-server/       optional self-hostable Listen Together relay (Node + ws)
-scripts/      fixture generator + Playwright smoke tests + relay self-test
+  components/ mini player, full player (blurred artwork backdrop), connect prompt, toasts
+  screens/    Home (Recommended), Search, Library, Phone
+scripts/      fixture generator + Playwright smoke tests + bridge protocol simulator
 ```
 
 ## Privacy

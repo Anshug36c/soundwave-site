@@ -1,15 +1,15 @@
 /**
- * Engine-behaviour smoke test: verifies the three end-of-track fixes that a plain "does it play"
- * check cannot see. Runs against the built site via `vite preview`.
+ * Engine-behaviour smoke test: verifies the end-of-track behaviours a plain
+ * "does it play" check cannot see. Runs against the built site via
+ * `vite preview`, driving the local library player.
  *
- *   1. Natural-end auto-advance — with crossfade OFF, a track that reaches its end moves the queue
- *      on by itself (the missing native `ended` handler used to stall the queue here).
- *   2. Single history booking — that natural end books the outgoing track's play stats exactly
- *      once (playCount === 1), not twice (the old `ended`+`next()` path double-booked).
- *   3. Crossfade index sync — with crossfade ON, an automatic fade swaps the deck AND the store's
- *      queueIndex follows, so the UI shows the track that is actually playing.
+ *   1. Natural-end auto-advance — a track that reaches its end moves the
+ *      queue on by itself, and the store index matches the engine's track.
+ *   2. Repeat-one — with repeat set to "one", a natural end replays the
+ *      same track instead of advancing.
  *
- * Each scenario seeks near the end of a 6s fixture to trigger the transition quickly.
+ * Each scenario seeks near the end of a 6s fixture to trigger the
+ * transition quickly.
  */
 import { chromium } from 'playwright';
 import { readdirSync } from 'node:fs';
@@ -28,11 +28,12 @@ function assert(cond, msg) {
 const snap = (page) => page.evaluate(() => window.__soundwave.snapshot());
 const audio = (page) => page.evaluate(() => window.__soundwave.audioState);
 
-async function importAndQueue(page, files) {
+async function importAndPlay(page, files) {
+  await page.locator('.nav-item', { hasText: 'Library' }).click();
   await page.locator('input[type="file"]').first().setInputFiles(files);
   await page.waitForSelector('.track-row', { timeout: 20000 });
-  // Play all from the library so the queue is the full set.
-  await page.locator('.btn.primary', { hasText: 'Play all' }).first().click();
+  // Playing the first row queues the whole visible library list.
+  await page.locator('.track-row').first().click();
   await page.waitForFunction(() => window.__soundwave.audioState.trackId !== null, null, { timeout: 10000 });
 }
 
@@ -52,17 +53,15 @@ async function main() {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForSelector('.brand', { timeout: 10000 });
 
-    /* ---------------- Scenario 1 + 2: natural end, crossfade OFF ---------------- */
-    log('— Scenario 1/2: natural-end auto-advance + single booking (crossfade off)');
-    await page.evaluate(() => window.__soundwave.store.getState().setCrossfade(false, 6));
-    await importAndQueue(page, files);
+    /* ---------------- Scenario 1: natural end auto-advances ---------------- */
+    log('— Scenario 1: natural-end auto-advance');
+    await importAndPlay(page, files);
 
     let s = await snap(page);
     assert(s.queueLength >= 2, `queue built with ${s.queueLength} tracks`);
     const firstId = s.currentQueueId;
-    assert(s.queueIndex === 0, `starts at index 0`);
+    assert(s.queueIndex === 0, 'starts at index 0');
 
-    // Seek near the end of the first track and let it run out.
     const dur = (await audio(page)).durationSec;
     await page.evaluate((d) => window.__soundwave.store.getState().seek(Math.max(0, d - 0.4)), dur);
     await page.waitForFunction(
@@ -73,49 +72,29 @@ async function main() {
     await page.waitForTimeout(400);
 
     s = await snap(page);
-    assert(s.queueIndex === 1, `auto-advanced to index 1 after natural end (got ${s.queueIndex})`);
-    assert(s.currentQueueId !== firstId, `queue now on a different track`);
-
-    // History for the first track must be booked exactly once.
-    const firstStats = Object.values(s.stats).find((st) => st.playCount >= 1 || st.totalPlayTimeMs > 0);
-    const booked = Object.values(s.stats).filter((st) => st.playCount === 1);
-    const doubleBooked = Object.values(s.stats).filter((st) => st.playCount > 1);
-    assert(s.statsCount >= 1, `history recorded (${s.statsCount} stat rows)`);
-    assert(doubleBooked.length === 0,
-      `no track double-booked (playCount>1 rows: ${doubleBooked.length})`);
-    assert(booked.length >= 1, `completed play booked once (playCount===1 rows: ${booked.length})`);
-    void firstStats;
-
-    /* ---------------- Scenario 3: automatic crossfade syncs the index ---------------- */
-    log('— Scenario 3: automatic crossfade syncs store queueIndex');
-    // Fresh page so the queue/history start clean, crossfade ON with a short window.
-    await page.goto(BASE, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.brand', { timeout: 10000 });
-    await page.evaluate(() => window.__soundwave.store.getState().setCrossfade(true, 2));
-    await importAndQueue(page, files);
-
-    s = await snap(page);
-    const cfFirstId = s.currentQueueId;
-    assert(s.queueIndex === 0, `crossfade scenario starts at index 0`);
-
-    // Seek so remaining time (<=2s) is inside the crossfade window; the scheduler should fire.
-    const dur2 = (await audio(page)).durationSec;
-    await page.evaluate((d) => window.__soundwave.store.getState().seek(Math.max(0, d - 1.5)), dur2);
-
-    await page.waitForFunction(
-      (prevId) => window.__soundwave.snapshot().currentQueueId !== prevId,
-      cfFirstId,
-      { timeout: 8000 },
-    ).catch(() => {});
-    await page.waitForTimeout(500);
-
-    s = await snap(page);
     const a = await audio(page);
-    assert(s.currentQueueId !== cfFirstId,
-      `crossfade advanced to the next track (store index ${s.queueIndex})`);
-    assert(s.queueIndex === 1, `store queueIndex synced to 1 after auto-crossfade (got ${s.queueIndex})`);
+    assert(s.queueIndex === 1, `auto-advanced to index 1 after natural end (got ${s.queueIndex})`);
+    assert(s.currentQueueId !== firstId, 'queue now on a different track');
     assert(a.trackId === s.currentQueueId,
       `engine's active track matches the store's (engine=${a.trackId}, store=${s.currentQueueId})`);
+
+    /* ---------------- Scenario 2: repeat-one replays ---------------- */
+    log('— Scenario 2: repeat-one replays the same track');
+    await page.evaluate(() => {
+      const st = window.__soundwave.store.getState();
+      st.cycleRepeat(); // off -> all
+      st.cycleRepeat(); // all -> one
+    });
+    s = await snap(page);
+    assert(s.settings.repeat === 'one', `repeat is 'one' (got ${s.settings.repeat})`);
+    const repeatId = s.currentQueueId;
+    const dur2 = (await audio(page)).durationSec;
+    await page.evaluate((d) => window.__soundwave.store.getState().seek(Math.max(0, d - 0.4)), dur2);
+    await page.waitForTimeout(1500);
+    s = await snap(page);
+    const a2 = await audio(page);
+    assert(s.currentQueueId === repeatId, 'repeat-one stayed on the same track after its end');
+    assert(a2.playing, 'repeat-one is playing again after replay');
   } catch (e) {
     errors.push('exception: ' + e.message);
   } finally {
@@ -124,7 +103,7 @@ async function main() {
 
   console.log('\n[engine] ==============================');
   if (errors.length === 0) {
-    console.log('[engine] PASS — auto-advance, single booking, and crossfade sync all verified');
+    console.log('[engine] PASS — auto-advance and repeat-one verified');
     process.exit(0);
   }
   console.log(`[engine] FAIL — ${errors.length} problem(s):`);

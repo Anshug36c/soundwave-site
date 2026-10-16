@@ -132,6 +132,15 @@ export class RemoteClient {
     return data.results ?? [];
   }
 
+  /** Home-feed song recommendations from the phone (same source as the app's Home). */
+  async recommendations(limit = 24): Promise<RemoteTrack[]> {
+    const data = await this.request<{ results: RemoteTrack[] }>(
+      `/api/recommendations?limit=${limit}`,
+      { timeoutMs: 30_000 },
+    );
+    return data.results ?? [];
+  }
+
   async track(trackId: string): Promise<RemoteTrack> {
     const data = await this.request<{ track: RemoteTrack }>(`/api/track/${encodeURIComponent(trackId)}`);
     return data.track;

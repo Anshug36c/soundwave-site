@@ -41,6 +41,19 @@ export const IconHome = (p: P) => (
     <path d="M5.5 9.5V20a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V9.5" />
   </Svg>
 );
+export const IconBack = (p: P) => (
+  <Svg {...p}>
+    <path d="M14.5 5.5 8 12l6.5 6.5" />
+  </Svg>
+);
+export const IconChart = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 20h16" />
+    <path d="M7 20v-6" />
+    <path d="M12 20V5" />
+    <path d="M17 20v-9" />
+  </Svg>
+);
 export const IconPlay = (p: P) => (
   <SvgFilled {...p}>
     <path d="M8 5.14v13.72c0 .8.87 1.3 1.56.88l11.03-6.86a1.03 1.03 0 0 0 0-1.76L9.56 4.26A1.03 1.03 0 0 0 8 5.14Z" />

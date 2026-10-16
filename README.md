@@ -16,11 +16,19 @@ device.
 
 ## Features
 
-- **Home (Recommended)** — Quick picks from the YouTube Music home feed, served by the
-  connected SoundWave phone (the same source the app's Home screen shows). No phone, no
-  recommendations — the screen offers to connect instead of showing placeholder data.
-- **Search** — runs on the connected phone (YouTube Music, same catalogue as the app);
-  results play here in the browser.
+- **Home** — the app's Home screen, whole: shelves from the YouTube Music home feed
+  (quick picks, albums, artists, mixes) served by the connected SoundWave phone, plus
+  **Charts** and **Explore** (new releases + mood/genre tiles) entries like the app's
+  chips. No phone, no home feed — the screen offers to connect instead of showing
+  placeholder data.
+- **Search** — runs on the connected phone (YouTube Music, same catalogue as the app)
+  with the app's type tabs: **Songs, Albums, Artists, Playlists**. Songs play here;
+  albums/artists/playlists open their full pages (header, Play all, song list, related
+  shelves) just like the app.
+- **Stats & Settings** (top-right icons, like the app) — Stats counts listening done
+  *in this browser*; Settings carries the app preferences that make sense here
+  (theme incl. light, volume, a 5-band parametric EQ for the local player, data
+  controls). The Library also has the app's Songs/Liked views.
 - **Library** — import files or a whole folder, parse ID3/Vorbis/MP4/FLAC tags and cover
   art, like, and remove. On Chromium browsers, folder access can be re-granted so the
   library survives reloads. Files never leave the device.
@@ -43,9 +51,9 @@ device.
 
 Captured from the deployed site driving a real headless browser (`scripts/screenshot.mjs`).
 
-| Home | Library | Full player |
-| --- | --- | --- |
-| ![Home](docs/screenshots/home.png) | ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) |
+| Home | Album page | Library | Full player |
+| --- | --- | --- | --- |
+| ![Home](docs/screenshots/home.png) | ![Album](docs/screenshots/detail.png) | ![Library](docs/screenshots/library.png) | ![Now playing](docs/screenshots/now-playing.png) |
 
 ## Phone — music from your Android, played here
 
@@ -97,10 +105,10 @@ npm run verify
     can't see: natural-end **auto-advance** (store index matches the engine's track)
     and **repeat-one** replay.
   - `scripts/smoke-bridge.mjs` — against a protocol simulator of the phone bridge:
-    wrong pairing code rejected, Home recommendations + Search served by the phone,
-    browser-side playback advancing, Range seek, pause/resume, queue/next, and the
-    site's local player provably never started by any of it. Run standalone with
-    `npm run smoke:bridge`.
+    wrong pairing code rejected, Home shelves + typed Search served by the phone,
+    album page opened from search and played, browser-side playback advancing,
+    Range seek, pause/resume, queue/next, and the site's local player provably
+    never started by any of it. Run standalone with `npm run smoke:bridge`.
 
 The same `verify` gate runs in CI on every push and pull request (see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)).

@@ -45,6 +45,53 @@ export interface RemoteSessionInfo {
   label: string;
 }
 
+export interface RemoteItem {
+  type: 'song' | 'album' | 'artist' | 'playlist' | 'mood';
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  thumbnailUrl?: string | null;
+  durationSec?: number | null;
+  explicit?: boolean;
+  /** Album year, playlist song count, or mood colour (#rrggbb). */
+  extra?: string | null;
+}
+
+export interface RemoteSection {
+  title: string;
+  label?: string | null;
+  items: RemoteItem[];
+}
+
+export interface RemoteDetail {
+  kind: 'album' | 'artist' | 'playlist';
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  songs: RemoteTrack[];
+  sections: RemoteSection[];
+}
+
+/** Playable track view of a song-type catalogue item. */
+export function itemToTrack(item: RemoteItem): RemoteTrack {
+  return {
+    id: item.id,
+    title: item.title,
+    artist: item.subtitle ?? '',
+    album: item.extra ?? null,
+    durationSec: item.durationSec ?? null,
+    thumbnailUrl: item.thumbnailUrl ?? null,
+    explicit: item.explicit ?? false,
+  };
+}
+
+/** The playable songs inside a mixed catalogue section, as tracks. */
+export function sectionTracks(section: RemoteSection): RemoteTrack[] {
+  return section.items.filter((i) => i.type === 'song').map(itemToTrack);
+}
+
 export class RemoteError extends Error {
   readonly code: string;
   readonly status: number;
@@ -139,6 +186,50 @@ export class RemoteClient {
       { timeoutMs: 30_000 },
     );
     return data.results ?? [];
+  }
+
+  /** Home feed shelves from the phone (quick picks, albums, artists…). */
+  async home(): Promise<RemoteSection[]> {
+    const data = await this.request<{ sections: RemoteSection[] }>('/api/home', { timeoutMs: 45_000 });
+    return data.sections ?? [];
+  }
+
+  /** Typed search: albums, artists or playlists (songs use search()). */
+  async searchItems(query: string, type: 'album' | 'artist' | 'playlist', limit = 20): Promise<RemoteItem[]> {
+    const data = await this.request<{ results: RemoteItem[] }>(
+      `/api/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}`,
+      { timeoutMs: 30_000 },
+    );
+    return data.results ?? [];
+  }
+
+  /** Album / artist / playlist page from the phone. */
+  async detail(kind: 'album' | 'artist' | 'playlist', id: string): Promise<RemoteDetail> {
+    const data = await this.request<{ detail: RemoteDetail }>(
+      `/api/${kind}/${encodeURIComponent(id)}`,
+      { timeoutMs: 45_000 },
+    );
+    return data.detail;
+  }
+
+  async charts(): Promise<RemoteSection[]> {
+    const data = await this.request<{ sections: RemoteSection[] }>('/api/charts', { timeoutMs: 45_000 });
+    return data.sections ?? [];
+  }
+
+  async explore(): Promise<RemoteSection[]> {
+    const data = await this.request<{ sections: RemoteSection[] }>('/api/explore', { timeoutMs: 45_000 });
+    return data.sections ?? [];
+  }
+
+  /** Generic browse (mood tiles and other shelves the phone can resolve). */
+  async browse(id: string, params?: string | null): Promise<RemoteSection[]> {
+    const q = params ? `&params=${encodeURIComponent(params)}` : '';
+    const data = await this.request<{ sections: RemoteSection[] }>(
+      `/api/browse?id=${encodeURIComponent(id)}${q}`,
+      { timeoutMs: 45_000 },
+    );
+    return data.sections ?? [];
   }
 
   async track(trackId: string): Promise<RemoteTrack> {

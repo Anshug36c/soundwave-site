@@ -11,6 +11,8 @@
  *   DELETE /api/session         -> revoke                (Bearer token)
  *   GET  /api/search?q=         -> fake catalog matches  (Bearer token)
  *   GET  /api/recommendations   -> the fake catalog as home feed (Bearer token)
+ *   GET  /api/home|charts|explore, /api/browse, /api/album|artist|playlist/<id>
+ *                               -> fake catalogue shelves + detail pages
  *   POST /api/resolve {trackId} -> {streamPath, ...}     (Bearer token)
  *   GET  /api/stream/<grant>?t= -> WAV bytes, Range-capable
  *   POST /api/state             -> records the web player's own state
@@ -133,7 +135,7 @@ const server = createServer(async (req, res) => {
       sessions.delete(token);
       return json(res, 200, { ok: true });
     }
-    if (path === '/api/search' && req.method === 'GET') {
+    if (path === '/api/search' && req.method === 'GET' && !(url.searchParams.get('type') && url.searchParams.get('type') !== 'song')) {
       const q = (url.searchParams.get('q') || '').toLowerCase();
       const results = TRACKS.filter((t) => `${t.title} ${t.artist}`.toLowerCase().includes(q) || q.length === 0)
         .map(({ wav, ...meta }) => meta);
@@ -142,6 +144,45 @@ const server = createServer(async (req, res) => {
     if (path === '/api/recommendations' && req.method === 'GET') {
       const results = TRACKS.map(({ wav, ...meta }) => meta);
       return json(res, 200, { results });
+    }
+    const meta = ({ wav, ...m }) => m;
+    const songItem = (t) => ({ type: 'song', id: t.id, title: t.title, subtitle: t.artist, thumbnailUrl: null, durationSec: t.durationSec, explicit: false, extra: t.album });
+    if (path === '/api/home' && req.method === 'GET') {
+      return json(res, 200, { sections: [
+        { title: 'Quick picks', label: null, items: TRACKS.map(songItem) },
+        { title: 'Albums for you', label: null, items: [{ type: 'album', id: 'MPREb_sim', title: 'Sim Album', subtitle: 'Bridge Simulator', thumbnailUrl: null, durationSec: null, explicit: false, extra: '2024' }] },
+        { title: 'Artists', label: null, items: [{ type: 'artist', id: 'UCsim', title: 'Bridge Simulator', subtitle: null, thumbnailUrl: null, durationSec: null, explicit: false, extra: null }] },
+      ] });
+    }
+    if (path === '/api/charts' && req.method === 'GET') {
+      return json(res, 200, { sections: [{ title: 'Top songs', label: 'top', items: TRACKS.map(songItem) }] });
+    }
+    if (path === '/api/explore' && req.method === 'GET') {
+      return json(res, 200, { sections: [
+        { title: 'New releases', label: null, items: [{ type: 'album', id: 'MPREb_sim', title: 'Sim Album', subtitle: 'Bridge Simulator', thumbnailUrl: null, durationSec: null, explicit: false, extra: '2024' }] },
+        { title: 'Moods & genres', label: null, items: [{ type: 'mood', id: 'FEmusic_moods|abc', title: 'Focus', subtitle: null, thumbnailUrl: null, durationSec: null, explicit: false, extra: '#4455aa' }] },
+      ] });
+    }
+    if (path === '/api/browse' && req.method === 'GET') {
+      return json(res, 200, { sections: [{ title: 'Focus mixes', label: null, items: [{ type: 'playlist', id: 'VLPLsim', title: 'Sim Focus Mix', subtitle: 'YouTube Music', thumbnailUrl: null, durationSec: null, explicit: false, extra: '2 songs' }] }] });
+    }
+    if ((path.startsWith('/api/album/') || path.startsWith('/api/artist/') || path.startsWith('/api/playlist/')) && req.method === 'GET') {
+      const kind = path.split('/')[2];
+      return json(res, 200, { detail: {
+        kind, id: path.split('/')[3] || 'sim',
+        title: kind === 'album' ? 'Sim Album' : kind === 'artist' ? 'Bridge Simulator' : 'Sim Focus Mix',
+        subtitle: 'Bridge Simulator', description: 'Synthesised catalogue page for CI.',
+        thumbnailUrl: null, songs: TRACKS.map(meta), sections: [],
+      } });
+    }
+    if (path === '/api/search' && req.method === 'GET' && url.searchParams.get('type') && url.searchParams.get('type') !== 'song') {
+      const type = url.searchParams.get('type');
+      const items = type === 'album'
+        ? [{ type: 'album', id: 'MPREb_sim', title: 'Sim Album', subtitle: 'Bridge Simulator', thumbnailUrl: null, durationSec: null, explicit: false, extra: '2024' }]
+        : type === 'artist'
+          ? [{ type: 'artist', id: 'UCsim', title: 'Bridge Simulator', subtitle: null, thumbnailUrl: null, durationSec: null, explicit: false, extra: null }]
+          : [{ type: 'playlist', id: 'VLPLsim', title: 'Sim Focus Mix', subtitle: 'YouTube Music', thumbnailUrl: null, durationSec: null, explicit: false, extra: '2 songs' }];
+      return json(res, 200, { query: url.searchParams.get('q') || '', type, results: items });
     }
     if (path === '/api/resolve' && req.method === 'POST') {
       const body = JSON.parse((await readBody(req)) || '{}');

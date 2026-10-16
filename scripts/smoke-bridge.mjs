@@ -110,13 +110,43 @@ try {
   if (!before.playing && before.queueLength === 0) ok('local library player idle before remote playback');
   else fail(`local player unexpectedly active: ${JSON.stringify(before)}`);
 
-  // Home recommendations come from the phone's home feed (simulator here).
+  // Home shelves come from the phone's home feed (simulator here).
   await page.locator('.nav-item', { hasText: 'Home' }).click();
   await page.waitForSelector('[data-testid="recommended-track"]', { timeout: 8000 });
-  ok('Home recommendations arrived from the bridge');
+  const sectionCount = await page.locator('[data-testid="remote-section"]').count();
+  if (sectionCount >= 2) ok(`Home shelves arrived from the bridge (${sectionCount} sections)`);
+  else fail(`expected multiple home sections, got ${sectionCount}`);
+
+  // Album page via typed search: open the detail page and play its first
+  // song — full catalogue navigation, still browser-side playback only.
+  await page.locator('.nav-item', { hasText: 'Search' }).click();
+  await page.locator('.chip', { hasText: 'Albums' }).click();
+  await page.locator('input[placeholder*="Search songs"]').fill('tone');
+  await page.locator('input[placeholder*="Search songs"]').press('Enter');
+  await page.waitForSelector('[data-testid="search-item"]', { timeout: 8000 });
+  await page.locator('[data-testid="search-item"]').first().click();
+  await page.waitForSelector('[data-testid="detail"]', { timeout: 8000 });
+  ok('album detail page opened from search');
+  await page.locator('[data-testid="detail-play-all"]').click();
+  await page.waitForFunction(() => {
+    const a = window.__soundwave.remoteAudio;
+    return a && !a.paused && a.readyState >= 2;
+  }, null, { timeout: 10000 }).catch(() => {});
+  if ((await page.evaluate(() => window.__soundwave.remoteAudio))?.paused === false) ok('album Play-all plays in the browser');
+  else fail('album Play-all did not start playback');
+  await page.evaluate(() => window.__soundwave.remote.getState().disconnect());
+  await page.waitForFunction(() => window.__soundwave.remote.getState().phase === 'offline', null, { timeout: 8000 }).catch(() => {});
+  // Reconnect for the rest of the flow.
+  await page.locator('.nav-item', { hasText: 'Phone' }).click();
+  await page.locator('input[placeholder*="pairing code"]').fill(CODE);
+  await page.locator('button', { hasText: 'Connect' }).click();
+  await page.waitForFunction(() => window.__soundwave.remote.getState().phase === 'online', null, { timeout: 10000 }).catch(() => {});
+  if ((await remote('phase')) === 'online') ok('reconnected after detail-page detour');
+  else fail('reconnect after detail page failed');
 
   // Search runs on the phone (simulator), results render here.
   await page.locator('.nav-item', { hasText: 'Search' }).click();
+  await page.locator('.chip', { hasText: 'Songs' }).click();
   await page.locator('input[placeholder*="Search songs"]').fill('tone');
   await page.locator('input[placeholder*="Search songs"]').press('Enter');
   await page.waitForSelector('[data-testid="remote-track"]', { timeout: 8000 });

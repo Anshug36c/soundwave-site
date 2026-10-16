@@ -36,6 +36,8 @@ import {
 } from '../lib/db';
 import type { SortDir, SortKey, Track } from '../lib/types';
 import { playerSource } from './playerSource';
+import { recordPlay } from '../lib/webStats';
+import type { ParametricEQBand } from '../lib/types';
 
 export type Tab = 'home' | 'search' | 'library' | 'phone';
 
@@ -70,6 +72,8 @@ interface StoreState {
   durationSec: number;
 
   tab: Tab;
+  statsOpen: boolean;
+  settingsOpen: boolean;
   query: string;
   sortKey: SortKey;
   sortDir: SortDir;
@@ -86,6 +90,12 @@ interface StoreState {
   clearLibrary: () => Promise<void>;
   // browsing
   setTab: (tab: Tab) => void;
+  setStatsOpen: (open: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
+  setTheme: (theme: Settings['theme']) => void;
+  setEqEnabled: (on: boolean) => void;
+  setEqBandGain: (index: number, gain: number) => void;
+  applyEqGains: (gains: number[]) => void;
   setQuery: (q: string) => void;
   setSort: (key: SortKey, dir?: SortDir) => void;
   setNowPlayingOpen: (open: boolean) => void;
@@ -190,6 +200,13 @@ export const store = create<StoreState>((set, get) => {
       const src = await resolveSrc(track);
       set({ queueIndex: index, playing: true });
       await eng.playNow({ trackId: track.id, src, durationSec: track.durationSec }, true);
+      recordPlay('local', {
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        artwork: track.artwork,
+        durationSec: track.durationSec,
+      });
       await putQueue({ trackIds: state.queue, index, positionSec: 0 });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Could not play that track.', playing: false });
@@ -215,6 +232,8 @@ export const store = create<StoreState>((set, get) => {
     durationSec: 0,
 
     tab: 'home',
+    statsOpen: false,
+    settingsOpen: false,
     query: '',
     sortKey: 'added',
     sortDir: 'desc',
@@ -259,6 +278,7 @@ export const store = create<StoreState>((set, get) => {
       }
 
       eng.setVolume(settings.volume);
+      eng.applyEq({ preamp: 0, bands: settings.eqBands, metadata: {} }, settings.eqEnabled);
 
       set({
         tracks: tracks.map(stripHandle),
@@ -435,6 +455,29 @@ export const store = create<StoreState>((set, get) => {
 
     setTab(tab) {
       set({ tab });
+    },
+    setStatsOpen(statsOpen) {
+      set({ statsOpen });
+    },
+    setSettingsOpen(settingsOpen) {
+      set({ settingsOpen });
+    },
+    setTheme(theme) {
+      void persistSettings({ theme });
+    },
+    setEqEnabled(on) {
+      void persistSettings({ eqEnabled: on });
+      getEngine().applyEq({ preamp: 0, bands: get().settings.eqBands, metadata: {} }, on);
+    },
+    setEqBandGain(index, gain) {
+      const bands = get().settings.eqBands.map((b, i) => (i === index ? { ...b, gain } : b));
+      void persistSettings({ eqBands: bands });
+      getEngine().applyEq({ preamp: 0, bands, metadata: {} }, get().settings.eqEnabled);
+    },
+    applyEqGains(gains) {
+      const bands: ParametricEQBand[] = get().settings.eqBands.map((b, i) => ({ ...b, gain: gains[i] ?? 0 }));
+      void persistSettings({ eqBands: bands, eqEnabled: true });
+      getEngine().applyEq({ preamp: 0, bands, metadata: {} }, true);
     },
     setQuery(query) {
       set({ query });

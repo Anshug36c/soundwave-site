@@ -1,21 +1,27 @@
 /**
- * Home — mirrors the app's Home screen: Quick picks from the YouTube Music
- * home feed, served by the connected SoundWave phone (the same source the
- * app itself shows). Nothing here is placeholder data: without a phone
- * connection the screen says so and offers to connect.
+ * Home — mirrors the app's Home screen: shelves from the YouTube Music
+ * home feed (quick picks, albums, artists, mixes) served by the connected
+ * SoundWave phone, plus Charts / Explore entries like the app's chips.
+ * Nothing here is placeholder data: without a phone connection the
+ * screen says so and offers to connect.
  */
 import { useEffect } from 'react';
 import { ConnectPrompt } from '../components/ConnectPrompt';
-import { RemoteTrackRow } from '../components/RemoteTrackRow';
+import { RemoteSectionView } from '../components/RemoteSection';
 import { remoteStore } from '../state/remote';
+import type { RemoteItem } from '../lib/remoteClient';
 
 export function HomeScreen() {
   const phase = remoteStore((s) => s.phase);
-  const recommended = remoteStore((s) => s.recommended);
-  const loading = remoteStore((s) => s.recommendedLoading);
-  const loadRecommended = remoteStore((s) => s.loadRecommended);
+  const sections = remoteStore((s) => s.homeSections);
+  const loading = remoteStore((s) => s.homeLoading);
+  const loadHome = remoteStore((s) => s.loadHome);
   const playListAt = remoteStore((s) => s.playListAt);
-  const enqueue = remoteStore((s) => s.enqueue);
+  const openDetail = remoteStore((s) => s.openDetail);
+  const openMood = remoteStore((s) => s.openMood);
+  const openCharts = remoteStore((s) => s.openCharts);
+  const openExplore = remoteStore((s) => s.openExplore);
+  const detailLoading = remoteStore((s) => s.detailLoading);
   const queue = remoteStore((s) => s.queue);
   const index = remoteStore((s) => s.index);
 
@@ -23,78 +29,57 @@ export function HomeScreen() {
   const currentId = index >= 0 && index < queue.length ? queue[index].id : null;
 
   useEffect(() => {
-    if (online && recommended.length === 0) void loadRecommended();
-  }, [online, recommended.length, loadRecommended]);
+    if (online && sections.length === 0) void loadHome();
+  }, [online, sections.length, loadHome]);
 
-  const quickPicks = recommended.slice(0, 16);
-  const more = recommended.slice(16);
+  const onItem = (item: RemoteItem) => {
+    if (item.type === 'mood') void openMood(item);
+    else if (item.type === 'album' || item.type === 'artist' || item.type === 'playlist') {
+      void openDetail(item.type, item.id);
+    }
+  };
 
   return (
     <div style={{ padding: '8px 0 24px' }}>
       <div className="page-title">Home</div>
-      <div className="page-sub">Recommended from SoundWave — plays here, never on the phone.</div>
+      <div className="page-sub">From SoundWave's home feed — plays here, never on the phone.</div>
 
       {!online ? (
-        <ConnectPrompt what="Your recommendations" />
-      ) : loading && recommended.length === 0 ? (
-        <div className="hint" style={{ padding: '18px 2px' }}>
-          Asking SoundWave for your home feed…
-        </div>
-      ) : recommended.length === 0 ? (
-        <div className="card">
-          <h3>Nothing recommended right now</h3>
-          <div className="hint">
-            SoundWave returned an empty home feed. Search still works — or open YouTube Music in
-            the app once so it has something to recommend from.
-          </div>
-        </div>
+        <ConnectPrompt what="Your home feed" />
       ) : (
         <>
-          <div className="section-title">Quick picks</div>
-          <div className="quick-picks">
-            {quickPicks.map((t, i) => (
-              <div
-                key={t.id}
-                className={`qp-cell${currentId === t.id ? ' active' : ''}`}
-                onClick={() => void playListAt(recommended, i)}
-                data-testid="recommended-track"
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void playListAt(recommended, i);
-                }}
-              >
-                {t.thumbnailUrl ? (
-                  <img className="track-art" src={t.thumbnailUrl} alt="" width={46} height={46} />
-                ) : (
-                  <div className="art-fallback" style={{ width: 46, height: 46, fontSize: 19 }}>
-                    {(t.title || '?').trim().charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="track-main">
-                  <div className="t-title">{t.title}</div>
-                  <div className="t-sub">{t.artist}</div>
-                </div>
-              </div>
-            ))}
+          <div className="row" style={{ gap: 8, marginBottom: 4 }}>
+            <button className="btn sm" onClick={() => void openCharts()} disabled={detailLoading}>
+              Charts
+            </button>
+            <button className="btn sm" onClick={() => void openExplore()} disabled={detailLoading}>
+              Explore · New releases &amp; moods
+            </button>
+            {detailLoading && <span className="muted" style={{ fontSize: 13 }}>Loading…</span>}
           </div>
 
-          {more.length > 0 && (
-            <>
-              <div className="section-title">Recommended for you</div>
-              <div className="track-list">
-                {more.map((t, i) => (
-                  <RemoteTrackRow
-                    key={t.id}
-                    track={t}
-                    current={currentId === t.id}
-                    onPlay={() => void playListAt(recommended, quickPicks.length + i)}
-                    onEnqueue={() => enqueue(t)}
-                    testId="recommended-track"
-                  />
-                ))}
+          {loading && sections.length === 0 ? (
+            <div className="hint" style={{ padding: '18px 2px' }}>
+              Asking SoundWave for your home feed…
+            </div>
+          ) : sections.length === 0 ? (
+            <div className="card">
+              <h3>Nothing here right now</h3>
+              <div className="hint">
+                SoundWave returned an empty home feed. Search still works — or open YouTube Music
+                in the app once so it has something to recommend from.
               </div>
-            </>
+            </div>
+          ) : (
+            sections.map((section) => (
+              <RemoteSectionView
+                key={section.title}
+                section={section}
+                currentId={currentId}
+                onPlayTracks={(tracks, i) => void playListAt(tracks, i)}
+                onItem={onItem}
+              />
+            ))
           )}
         </>
       )}

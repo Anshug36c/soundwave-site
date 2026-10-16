@@ -16,11 +16,13 @@ export function LibraryScreen() {
   const [urlOpen, setUrlOpen] = useState(false);
   const [urlValue, setUrlValue] = useState('');
   const [menuTrack, setMenuTrack] = useState<string | null>(null);
+  const [view, setView] = useState<'songs' | 'liked'>('songs');
 
-  const visible = useMemo(
+  const visibleAll = useMemo(
     () => sortedTracks({ tracks: state.tracks, query: state.query, sortKey: state.sortKey, sortDir: state.sortDir }),
     [state.tracks, state.query, state.sortKey, state.sortDir],
   );
+  const visible = view === 'liked' ? visibleAll.filter((t) => t.liked) : visibleAll;
 
   const currentId = state.queue[state.queueIndex];
   const stats = useMemo(() => summarize(state.tracks), [state.tracks]);
@@ -73,6 +75,15 @@ export function LibraryScreen() {
         {stats.count} tracks · {formatLongTime(stats.totalSec)} · {formatBytes(stats.totalBytes)}
       </p>
 
+      <div className="chips-row" style={{ marginBottom: 12 }}>
+        <button className={`chip${view === 'songs' ? ' on' : ''}`} onClick={() => setView('songs')}>
+          Songs
+        </button>
+        <button className={`chip${view === 'liked' ? ' on' : ''}`} onClick={() => setView('liked')}>
+          Liked
+        </button>
+      </div>
+
       <div className="lib-toolbar">
         <div className="search" style={{ flex: 1 }}>
           <IconSearch size={18} />
@@ -97,7 +108,9 @@ export function LibraryScreen() {
       <div className="track-list">
         {visible.length === 0 ? (
           <div className="center muted" style={{ padding: 40 }}>
-            No tracks match "{state.query}".
+            {view === 'liked' && !state.query
+              ? 'No liked songs yet — tap the heart on a track.'
+              : `No tracks match "${state.query}".`}
           </div>
         ) : (
           visible.map((t) => (

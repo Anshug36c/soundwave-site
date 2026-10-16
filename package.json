@@ -1,0 +1,39 @@
+{
+  "name": "soundwave-site",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Soundwave Web - a browser build of the Soundwave music player, static-hosted on GitHub Pages.",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "fixtures": "node scripts/make-fixtures.mjs .fixtures/audio 6",
+    "smoke:e2e": "node scripts/smoke.mjs",
+    "smoke:engine": "node scripts/smoke-engine.mjs",
+    "smoke:serve": "node scripts/run-preview-and-smoke.mjs",
+    "smoke": "npm run fixtures && npm run build && npm run smoke:serve",
+    "verify": "npm run typecheck && npm run test && npm run smoke"
+  },
+  "dependencies": {
+    "idb": "^8.0.4",
+    "music-metadata": "^10.9.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@types/wicg-file-system-access": "^2023.10.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "playwright": "^1.64.1",
+    "typescript": "~5.7.2",
+    "vite": "^6.4.4",
+    "vitest": "^2.1.9"
+  }
+}

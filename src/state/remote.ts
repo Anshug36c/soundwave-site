@@ -11,9 +11,13 @@ import { create } from 'zustand';
 import {
   RemoteClient,
   RemoteError,
+  type RemoteDetail,
+  type RemoteItem,
+  type RemoteSection,
   type RemoteSessionInfo,
   type RemoteTrack,
 } from '../lib/remoteClient';
+import { recordPlay } from '../lib/webStats';
 import { playerSource } from './playerSource';
 
 export type RemotePhase = 'offline' | 'checking' | 'online' | 'error';
@@ -30,8 +34,13 @@ interface RemoteState {
   searching: boolean;
   results: RemoteTrack[];
 
-  recommended: RemoteTrack[];
-  recommendedLoading: boolean;
+  homeSections: RemoteSection[];
+  homeLoading: boolean;
+  searchType: 'song' | 'album' | 'artist' | 'playlist';
+  searchItems: RemoteItem[];
+  detailStack: RemoteDetail[];
+  browseStack: { title: string; sections: RemoteSection[] }[];
+  detailLoading: boolean;
 
   queue: RemoteTrack[];
   index: number;
@@ -50,7 +59,14 @@ interface RemoteState {
   reconnect: () => Promise<void>;
   disconnect: () => Promise<void>;
   search: () => Promise<void>;
-  loadRecommended: () => Promise<void>;
+  loadHome: () => Promise<void>;
+  setSearchType: (type: 'song' | 'album' | 'artist' | 'playlist') => void;
+  openDetail: (kind: 'album' | 'artist' | 'playlist', id: string) => Promise<void>;
+  closeDetail: () => void;
+  openCharts: () => Promise<void>;
+  openExplore: () => Promise<void>;
+  openMood: (item: RemoteItem) => Promise<void>;
+  closeBrowse: () => void;
   playResultsAt: (index: number) => Promise<void>;
   playListAt: (tracks: RemoteTrack[], index: number) => Promise<void>;
   playQueueAt: (index: number) => Promise<void>;
@@ -252,6 +268,13 @@ export const remoteStore = create<RemoteState>((set, get) => {
       }
       el.src = c.streamUrl(resolved.streamPath);
       await el.play();
+      recordPlay('remote', {
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        artwork: track.thumbnailUrl,
+        durationSec: track.durationSec,
+      });
       updateMediaSession();
       reportState(true);
     } catch (e) {
@@ -278,8 +301,13 @@ export const remoteStore = create<RemoteState>((set, get) => {
     searching: false,
     results: [],
 
-    recommended: [],
-    recommendedLoading: false,
+    homeSections: [],
+    homeLoading: false,
+    searchType: 'song',
+    searchItems: [],
+    detailStack: [],
+    browseStack: [],
+    detailLoading: false,
 
     queue: [],
     index: -1,
@@ -323,7 +351,7 @@ export const remoteStore = create<RemoteState>((set, get) => {
         set({ phase: 'online', session: info.session, error: null, code: '' });
         startReportTimer();
         reportState(true);
-        void get().loadRecommended();
+        void get().loadHome();
       } catch (e) {
         if (e instanceof RemoteError && e.code === 'PAIRING_REQUIRED') {
           set({ phase: 'offline', error: e.message });
@@ -342,7 +370,7 @@ export const remoteStore = create<RemoteState>((set, get) => {
         const info = await c.session();
         set({ phase: 'online', session: info.session, error: null });
         startReportTimer();
-        void get().loadRecommended();
+        void get().loadHome();
       } catch (e) {
         failSession(e);
       }
@@ -373,24 +401,86 @@ export const remoteStore = create<RemoteState>((set, get) => {
         durationSec: 0,
         error: null,
         notice: null,
-        recommended: [],
+        homeSections: [],
+        searchItems: [],
+        detailStack: [],
+        browseStack: [],
       });
     },
 
-    loadRecommended: async () => {
+    loadHome: async () => {
       const c = client;
-      if (!c || get().phase !== 'online' || get().recommendedLoading) return;
-      set({ recommendedLoading: true });
+      if (!c || get().phase !== 'online' || get().homeLoading) return;
+      set({ homeLoading: true });
       try {
-        const recommended = await c.recommendations();
-        set({ recommended, recommendedLoading: false });
+        const homeSections = await c.home();
+        set({ homeSections, homeLoading: false });
       } catch (e) {
-        set({ recommendedLoading: false });
+        set({ homeLoading: false });
         if (e instanceof RemoteError && e.code === 'UNAUTHORIZED') failSession(e);
-        // Recommendations are a home-screen extra: a failure leaves the
-        // section empty (with its own hint) instead of erroring the screen.
+        // A failed home feed leaves the section empty (with its own hint)
+        // instead of erroring the whole screen.
       }
     },
+
+    setSearchType: (searchType) => set({ searchType }),
+
+    openDetail: async (kind, id) => {
+      const c = client;
+      if (!c || get().detailLoading) return;
+      set({ detailLoading: true, error: null });
+      try {
+        const detail = await c.detail(kind, id);
+        set((st) => ({ detailStack: [...st.detailStack, detail], detailLoading: false }));
+      } catch (e) {
+        set({ detailLoading: false });
+        failSession(e, get().phase === 'online' ? 'online' : 'error');
+      }
+    },
+
+    closeDetail: () => set((st) => ({ detailStack: st.detailStack.slice(0, -1) })),
+
+    openCharts: async () => {
+      const c = client;
+      if (!c || get().detailLoading) return;
+      set({ detailLoading: true, error: null });
+      try {
+        const sections = await c.charts();
+        set((st) => ({ browseStack: [...st.browseStack, { title: 'Charts', sections }], detailLoading: false }));
+      } catch (e) {
+        set({ detailLoading: false });
+        failSession(e, get().phase === 'online' ? 'online' : 'error');
+      }
+    },
+
+    openExplore: async () => {
+      const c = client;
+      if (!c || get().detailLoading) return;
+      set({ detailLoading: true, error: null });
+      try {
+        const sections = await c.explore();
+        set((st) => ({ browseStack: [...st.browseStack, { title: 'Explore', sections }], detailLoading: false }));
+      } catch (e) {
+        set({ detailLoading: false });
+        failSession(e, get().phase === 'online' ? 'online' : 'error');
+      }
+    },
+
+    openMood: async (item) => {
+      const c = client;
+      if (!c || get().detailLoading) return;
+      const [browseId, params] = item.id.split('|');
+      set({ detailLoading: true, error: null });
+      try {
+        const sections = await c.browse(browseId, params || null);
+        set((st) => ({ browseStack: [...st.browseStack, { title: item.title, sections }], detailLoading: false }));
+      } catch (e) {
+        set({ detailLoading: false });
+        failSession(e, get().phase === 'online' ? 'online' : 'error');
+      }
+    },
+
+    closeBrowse: () => set((st) => ({ browseStack: st.browseStack.slice(0, -1) })),
 
     search: async () => {
       const q = get().query.trim();
@@ -398,8 +488,13 @@ export const remoteStore = create<RemoteState>((set, get) => {
       if (!q || !c || get().phase !== 'online') return;
       set({ searching: true, error: null });
       try {
-        const results = await c.search(q);
-        set({ results, searching: false });
+        if (get().searchType === 'song') {
+          const results = await c.search(q);
+          set({ results, searching: false });
+        } else {
+          const searchItems = await c.searchItems(q, get().searchType as 'album' | 'artist' | 'playlist');
+          set({ searchItems, searching: false });
+        }
       } catch (e) {
         set({ searching: false });
         failSession(e, 'online');

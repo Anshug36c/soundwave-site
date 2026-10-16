@@ -1,8 +1,9 @@
 /**
  * App shell — mirrors the SoundWave Android app: four main screens
  * (Home, Search, Library, Phone), a floating glass mini player, a
- * floating glass bottom navigation, and the full-screen player sheet.
- * Nothing else lives in the navigation; that is deliberate.
+ * floating glass bottom navigation, the full-screen player sheet, and
+ * pushed pages on top (album/artist/playlist details, Charts/Explore,
+ * Stats, Settings) exactly like the app's back stack.
  */
 import { useEffect, useMemo } from 'react';
 import { store, type Tab } from './state/store';
@@ -13,11 +14,15 @@ import { HomeScreen } from './screens/HomeScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { LibraryScreen } from './screens/LibraryScreen';
 import { PhoneScreen } from './screens/PhoneScreen';
+import { DetailScreen } from './screens/DetailScreen';
+import { BrowseScreen } from './screens/BrowseScreen';
+import { StatsScreen } from './screens/StatsScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { MiniPlayer } from './components/MiniPlayer';
 import { FullPlayer } from './components/FullPlayer';
 import { Toasts } from './components/Toasts';
 import { ImportProgress } from './components/ImportProgress';
-import { IconHome, IconLibrary, IconPhone, IconSearch } from './ui/icons';
+import { IconChart, IconHome, IconLibrary, IconPhone, IconSearch, IconSettings } from './ui/icons';
 
 const NAV: { tab: Tab; label: string; Icon: typeof IconHome }[] = [
   { tab: 'home', label: 'Home', Icon: IconHome },
@@ -32,12 +37,30 @@ export function App() {
   const tab = store((s) => s.tab);
   const setTab = store((s) => s.setTab);
   const nowPlayingOpen = store((s) => s.nowPlayingOpen);
+  const statsOpen = store((s) => s.statsOpen);
+  const settingsOpen = store((s) => s.settingsOpen);
+  const setStatsOpen = store((s) => s.setStatsOpen);
+  const setSettingsOpen = store((s) => s.setSettingsOpen);
+  const theme = store((s) => s.settings.theme);
   const importing = store((s) => s.importing);
   const source = playerSource((s) => s.source);
+  const detailDepth = remoteStore((s) => s.detailStack.length);
+  const browseDepth = remoteStore((s) => s.browseStack.length);
 
   useEffect(() => {
     void init();
   }, [init]);
+
+  // Apply the chosen theme (mirrors the app's appearance setting).
+  useEffect(() => {
+    const resolved =
+      theme === 'system'
+        ? window.matchMedia?.('(prefers-color-scheme: light)').matches
+          ? 'light'
+          : 'dark'
+        : theme;
+    document.documentElement.setAttribute('data-theme', resolved);
+  }, [theme]);
 
   // One audible player at a time: starting one side pauses the other
   // side's audio element (their queues and state stay untouched).
@@ -94,6 +117,12 @@ export function App() {
           </div>
         </div>
         <div className="spacer" />
+        <button className="btn icon ghost" onClick={() => setStatsOpen(true)} aria-label="Listening stats">
+          <IconChart size={21} />
+        </button>
+        <button className="btn icon ghost" onClick={() => setSettingsOpen(true)} aria-label="Settings">
+          <IconSettings size={21} />
+        </button>
       </header>
 
       <main className="content">{ready ? screen : <BootSkeleton />}</main>
@@ -109,6 +138,10 @@ export function App() {
         ))}
       </nav>
 
+      {browseDepth > 0 && <BrowseScreen />}
+      {detailDepth > 0 && <DetailScreen />}
+      {statsOpen && <StatsScreen />}
+      {settingsOpen && <SettingsScreen />}
       {nowPlayingOpen && <FullPlayer />}
       {importing.active && <ImportProgress />}
       <Toasts />

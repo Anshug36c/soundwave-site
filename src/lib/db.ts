@@ -13,7 +13,7 @@
  */
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Track } from './types';
+import type { ParametricEQBand, Track } from './types';
 
 const DB_NAME = 'soundwave-web';
 const DB_VERSION = 2;
@@ -24,17 +24,32 @@ export interface StoredTrack extends Track {
   handle?: FileSystemFileHandle;
 }
 
-/** Player preferences only — the app-mirrored UI has no settings screen. */
+/** Player preferences (Settings mirrors the app's playback/appearance prefs). */
 export interface Settings {
   volume: number;
   shuffle: boolean;
   repeat: 'off' | 'all' | 'one';
+  theme: 'dark' | 'light' | 'system';
+  eqEnabled: boolean;
+  eqBands: ParametricEQBand[];
 }
+
+/** The five bands the web equalizer exposes (app-style parametric bands). */
+export const DEFAULT_EQ_BANDS: ParametricEQBand[] = [60, 250, 1000, 4000, 12000].map((frequency) => ({
+  frequency,
+  gain: 0,
+  q: 1.41,
+  filterType: 'PK' as const,
+  enabled: true,
+}));
 
 export const DEFAULT_SETTINGS: Settings = {
   volume: 0.9,
   shuffle: false,
   repeat: 'off',
+  theme: 'dark',
+  eqEnabled: false,
+  eqBands: DEFAULT_EQ_BANDS,
 };
 
 interface SoundwaveDB extends DBSchema {
